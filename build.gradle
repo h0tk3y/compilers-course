@@ -2,10 +2,9 @@ group 'com.github.h0tk3y.compilersCourse'
 version '1.0-SNAPSHOT'
 
 buildscript {
-    ext.kotlin_version = '1.1.0-rc-91'
+    ext.kotlin_version = '1.1.0'
 
     repositories {
-        maven { url 'http://dl.bintray.com/kotlin/kotlin-eap-1.1' }
         mavenCentral()
     }
     dependencies {
@@ -16,10 +15,10 @@ buildscript {
 apply plugin: 'kotlin'
 
 repositories {
-    maven { url 'http://dl.bintray.com/kotlin/kotlin-eap-1.1' }
     mavenCentral()
 }
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$kotlin_version"
-}
+    compile 'org.ow2.asm:asm:5.0.3'
+    testCompile "junit:junit:4.12" }
