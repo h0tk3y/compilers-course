@@ -1,6 +1,7 @@
 package com.github.h0tk3y.compilersCourse.jvm
 
 import com.github.h0tk3y.compilersCourse.Compiler
+import com.github.h0tk3y.compilersCourse.exhaustive
 import com.github.h0tk3y.compilersCourse.language.*
 import com.github.h0tk3y.compilersCourse.stack.*
 import jdk.internal.org.objectweb.asm.ClassWriter
@@ -52,16 +53,6 @@ class StackToJvmCompiler : Compiler<List<StackStatement>, ByteArray> {
 
             when (s) {
                 Nop -> mv.visitInsn(NOP)
-                Rd -> {
-                    mv.visitVarInsn(ALOAD, inputLocalVarIndex)
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/BufferedReader", "readLine", "()Ljava/lang/String;", false)
-                    mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "parseInt", "(Ljava/lang/String;)I", false)
-                }
-                Wr -> {
-                    mv.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;")
-                    mv.visitInsn(SWAP)
-                    mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(I)V", false)
-                }
 
                 is Push -> mv.visitLdcInsn(s.constant.value)
                 is Ld -> mv.visitVarInsn(ILOAD, variablesMap[s.v]!!)
@@ -77,53 +68,42 @@ class StackToJvmCompiler : Compiler<List<StackStatement>, ByteArray> {
                     Rem -> mv.visitInsn(IREM)
                     And -> mv.visitInsn(IAND)
                     Or -> mv.visitInsn(IOR)
-                    Eq -> {
-                        val labelNeq = Label()
+                    Eq, Neq, Gt, Lt, Leq, Geq -> {
+                        val labelOtherwise = Label()
                         val labelAfter = Label()
-                        mv.visitJumpInsn(IF_ICMPNE, labelNeq)
+                        mv.visitJumpInsn(checkOtherwiseOp[s.kind]!!, labelOtherwise)
                         mv.visitInsn(ICONST_1)
                         mv.visitJumpInsn(GOTO, labelAfter)
-                        mv.visitLabel(labelNeq)
+                        mv.visitLabel(labelOtherwise)
                         mv.visitInsn(ICONST_0)
                         mv.visitLabel(labelAfter)
                     }
-                    Neq -> {
-                        val labelEq = Label()
-                        val labelAfter = Label()
-                        mv.visitJumpInsn(IF_ICMPEQ, labelEq)
-                        mv.visitInsn(ICONST_1)
-                        mv.visitJumpInsn(GOTO, labelAfter)
-                        mv.visitLabel(labelEq)
-                        mv.visitInsn(ICONST_0)
-                        mv.visitLabel(labelAfter)
-                    }
-                    Gt -> {
-                        val labelLe = Label()
-                        val labelAfter = Label()
-                        mv.visitJumpInsn(IF_ICMPLE, labelLe)
-                        mv.visitInsn(ICONST_1)
-                        mv.visitJumpInsn(GOTO, labelAfter)
-                        mv.visitLabel(labelLe)
-                        mv.visitInsn(ICONST_0)
-                        mv.visitLabel(labelAfter)
-                    }
-                    Lt -> {
-                        val labelGe = Label()
-                        val labelAfter = Label()
-                        mv.visitJumpInsn(IF_ICMPGE, labelGe)
-                        mv.visitInsn(ICONST_1)
-                        mv.visitJumpInsn(GOTO, labelAfter)
-                        mv.visitLabel(labelGe)
-                        mv.visitInsn(ICONST_0)
-                        mv.visitLabel(labelAfter)
-                    }
-                }
+                }.exhaustive
                 is Jmp -> mv.visitJumpInsn(GOTO, labels[s.nextInstruction])
                 is Jz -> {
                     mv.visitInsn(ICONST_0)
                     mv.visitJumpInsn(IF_ICMPEQ, labels[s.nextInstruction])
                 }
-            }
+                is Call -> when (s.function) {
+                    is Intrinsic -> when (s.function) {
+                        Intrinsic.READ -> {
+                            mv.visitVarInsn(ALOAD, inputLocalVarIndex)
+                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/BufferedReader", "readLine", "()Ljava/lang/String;", false)
+                            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "parseInt", "(Ljava/lang/String;)I", false)
+                        }
+                        Intrinsic.WRITE -> {
+                            mv.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;")
+                            mv.visitInsn(SWAP)
+                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(I)V", false)
+                        }
+                    }
+                    else -> TODO()
+                }
+                PreArgs -> TODO()
+                Ret0 -> TODO()
+                Ret1 -> TODO()
+                Pop -> mv.visitInsn(POP)
+            }.exhaustive
         }
 
         mv.visitLabel(labels.last())
@@ -133,4 +113,11 @@ class StackToJvmCompiler : Compiler<List<StackStatement>, ByteArray> {
 
         return cw.toByteArray()
     }
+
+    val checkOtherwiseOp = mapOf(Eq to IF_ICMPNE,
+                                 Neq to IF_ICMPEQ,
+                                 Gt to IF_ICMPLE,
+                                 Lt to IF_ICMPGE,
+                                 Geq to IF_ICMPLT,
+                                 Leq to IF_ICMPGT)
 }

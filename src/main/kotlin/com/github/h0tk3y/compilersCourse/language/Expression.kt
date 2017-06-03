@@ -5,6 +5,11 @@ sealed class Expression
 data class Const(val value: Int) : Expression()
 data class Variable(val name: String) : Expression()
 
+data class FunctionCall(val functionDeclaration: FunctionDeclaration,
+                        val argumentExpressions: List<Expression>) : Expression() {
+    init { require(argumentExpressions.size == functionDeclaration.parameters.size) }
+}
+
 data class UnaryOperation(val operand: Expression, val kind: UnaryOperationKind) : Expression()
 sealed class UnaryOperationKind
 object Not : UnaryOperationKind()
@@ -26,6 +31,8 @@ object Eq : BinaryOperationKind()
 object Neq : BinaryOperationKind()
 object Gt : BinaryOperationKind()
 object Lt : BinaryOperationKind()
+object Leq : BinaryOperationKind()
+object Geq : BinaryOperationKind()
 
 fun BinaryOperationKind.semantics(l: Int, r: Int) = when (this) {
     Plus -> l + r
@@ -39,4 +46,6 @@ fun BinaryOperationKind.semantics(l: Int, r: Int) = when (this) {
     Neq -> if (l != r) 1 else 0
     Gt -> if (l > r) 1 else 0
     Lt -> if (l < r) 1 else 0
+    Leq -> if (l <= r) 1 else 0
+    Geq -> if (l >= r) 1 else 0
 }

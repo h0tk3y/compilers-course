@@ -11,3 +11,7 @@ infix fun Expression.eq(other: Expression) = BinaryOperation(this, other, Eq)
 infix fun Expression.neq(other: Expression) = BinaryOperation(this, other, Neq)
 infix fun Expression.lessThan(other: Expression) = BinaryOperation(this, other, Lt)
 infix fun Expression.greaterThan(other: Expression) = BinaryOperation(this, other, Gt)
+
+val Read = FunctionCall(Intrinsic.READ, emptyList())
+
+fun Write(e: Expression) = FunctionCallStatement(FunctionCall(Intrinsic.WRITE, listOf(e)))

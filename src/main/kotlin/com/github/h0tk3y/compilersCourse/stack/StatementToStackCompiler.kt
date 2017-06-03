@@ -1,12 +1,18 @@
 package com.github.h0tk3y.compilersCourse.stack
 
 import com.github.h0tk3y.compilersCourse.Compiler
+import com.github.h0tk3y.compilersCourse.exhaustive
 import com.github.h0tk3y.compilersCourse.language.*
 
-class StatementToStackCompiler : Compiler<Statement, List<StackStatement>> {
-    override fun compile(source: Statement): List<StackStatement> {
+class StatementToStackCompiler : Compiler<Program, StackProgram> {
+    override fun compile(source: Program): StackProgram {
+        val functionBodies = source.functionDeclaration.associate { it to compileFunction(it.body) }
+        return StackProgram(functionBodies, source.mainFunction)
+    }
+
+    private fun compileFunction(source: Statement): List<StackStatement> {
         val program = arrayListOf<StackStatement?>()
-        fun emit(stackStatement: StackStatement) = program.add(stackStatement)
+        fun emit(stackStatement: StackStatement) = program.add(stackStatement).run { }
 
         fun compileExpression(expression: Expression): Unit {
             when (expression) {
@@ -21,7 +27,12 @@ class StatementToStackCompiler : Compiler<Statement, List<StackStatement>> {
                     compileExpression(expression.right)
                     emit(Binop(expression.kind))
                 }
-            }
+                is FunctionCall -> {
+                    for (e in expression.argumentExpressions)
+                        compileExpression(e)
+                    emit(Call(expression.functionDeclaration))
+                }
+            }.exhaustive
         }
 
         fun emitPlaceholder(): Int {
@@ -39,14 +50,6 @@ class StatementToStackCompiler : Compiler<Statement, List<StackStatement>> {
                 is Assign -> {
                     compileExpression(statement.expression)
                     emit(St(statement.variable))
-                }
-                is Read -> {
-                    emit(Rd)
-                    emit(St(statement.variable))
-                }
-                is Write -> {
-                    compileExpression(statement.expression)
-                    emit(Wr)
                 }
                 is If -> {
                     compileExpression(statement.condition)
@@ -69,7 +72,15 @@ class StatementToStackCompiler : Compiler<Statement, List<StackStatement>> {
                     compileStatement(statement.leftPart)
                     compileStatement(statement.rightPart)
                 }
-            }
+                is Return -> {
+                    compileExpression(statement.expression)
+                    emit(Ret1)
+                }
+                is FunctionCallStatement -> {
+                    compileExpression(statement.functionCall)
+                    emit(Pop)
+                }
+            }.exhaustive
         }
 
         compileStatement(source)
