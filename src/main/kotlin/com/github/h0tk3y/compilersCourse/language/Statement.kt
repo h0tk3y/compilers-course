@@ -1,5 +1,7 @@
 package com.github.h0tk3y.compilersCourse.language
 
+import java.util.*
+
 sealed class Statement
 
 object Skip : Statement()
@@ -18,7 +20,13 @@ data class FunctionCallStatement(val functionCall: FunctionCall) : Statement()
 
 fun chainOf(vararg statements: Statement) = statements.reduce(::Chain)
 
-open class FunctionDeclaration(open val name: String, val parameters: List<Variable>, open val body: Statement)
+open class FunctionDeclaration(open val name: String, val parameters: List<Variable>, open val body: Statement) {
+    override fun hashCode(): Int = Objects.hash(name, parameters)
+    override fun equals(other: Any?) =
+            other is FunctionDeclaration && other.name == name && other.parameters == parameters
+
+    override fun toString(): String = "$name(${parameters.map { it.name }.joinToString()})"
+}
 
 data class UnresolvedFunction(override val name: String, val dimensions: Int) : FunctionDeclaration(name, (1..dimensions).map { Variable("unresolved") }, Skip) {
     override val body get() = throw IllegalStateException("Getting body of an unresolved function $this")
@@ -31,6 +39,6 @@ sealed class Intrinsic(name: String, parameters: List<Variable>) : FunctionDecla
     object WRITE : Intrinsic("write", listOf(Variable("expression")))
 
     companion object {
-        val declarations = listOf(READ, WRITE)
+        val declarations by lazy { listOf(READ, WRITE) }
     }
 }

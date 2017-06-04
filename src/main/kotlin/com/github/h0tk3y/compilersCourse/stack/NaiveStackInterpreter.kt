@@ -8,7 +8,7 @@ import com.github.h0tk3y.compilersCourse.language.andMap
 import com.github.h0tk3y.compilersCourse.language.semantics
 
 data class StackMachineState(val input: List<Int>,
-                             val output: List<Int>,
+                             val output: List<Int?>,
                              val state: (Variable) -> Int,
                              val stack: List<Int>,
                              val instructionPointer: Int)
@@ -25,7 +25,8 @@ class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, Lis
             is Push -> copy(stack = stack + t.constant.value)
             is Ld -> copy(stack = stack + state(t.v))
             is St -> copy(stack = stack.dropLast(1), state = state.andMap(t.v to stack.last()))
-            is Unop -> copy(stack = stack.dropLast(1) + t.kind.semantics(stack.last()))
+            is Unop ->
+                copy(stack = stack.dropLast(1) + t.kind.semantics(stack.last()))
             is Binop -> {
                 val l = stack[stack.lastIndex - 1]
                 val r = stack.last()
@@ -39,7 +40,7 @@ class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, Lis
             is Call -> t.function.let { f ->
                 when (f) {
                     is Intrinsic -> when (f) {
-                        Intrinsic.READ -> copy(input = input.drop(1), stack = stack + input.first())
+                        Intrinsic.READ -> copy(input = input.drop(1), stack = stack + input.first(), output = output + null as Int?)
                         Intrinsic.WRITE -> copy(output = output + stack.last(), stack = stack.dropLast(1))
                     }.exhaustive
                     else -> {
@@ -49,7 +50,8 @@ class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, Lis
                                 emptyList(), 0)
                         val result = join(internalMachine, StackProgram(p.functions, f))
                         val returnValue = result.stack.last()
-                        copy(result.input, result.output, stack = stack + returnValue)
+                        copy(result.input, result.output,
+                             stack = stack.dropLast(f.parameters.size) + returnValue)
                     }
                 }.exhaustive
             }

@@ -15,7 +15,7 @@ sealed class UnaryOperationKind
 object Not : UnaryOperationKind()
 
 fun UnaryOperationKind.semantics(x: Int) = when (this) {
-    Not -> -x
+    Not -> if (x == 0) 1 else 0
 }
 
 data class BinaryOperation(val left: Expression, val right: Expression, val kind: BinaryOperationKind) : Expression()
@@ -40,8 +40,8 @@ fun BinaryOperationKind.semantics(l: Int, r: Int) = when (this) {
     Times -> l * r
     Div -> l / r
     Rem -> l % r
-    And -> l and r
-    Or -> l or r
+    And -> if (l != 0 && r != 0) 1 else 0
+    Or -> if (l != 0 || r != 0) 1 else 0
     Eq -> if (l == r) 1 else 0
     Neq -> if (l != r) 1 else 0
     Gt -> if (l > r) 1 else 0

@@ -50,6 +50,12 @@ class StackToJvmCompiler : Compiler<StackProgram, ByteArray> {
         return cw.toByteArray()
     }
 
+    fun f() {
+        val a = false
+        val b = !a
+        println(b)
+    }
+
     private fun compileFunction(declaration: FunctionDeclaration, source: List<StackStatement>, cw: ClassWriter, isMain: Boolean) {
         val signature = if (isMain)
             "([Ljava/lang/String;)V" else
@@ -76,7 +82,15 @@ class StackToJvmCompiler : Compiler<StackProgram, ByteArray> {
                     is Ld -> visitVarInsn(ILOAD, variablesMap[s.v]!!)
                     is St -> visitVarInsn(ISTORE, variablesMap[s.v]!!)
                     is Unop -> when (s.kind) {
-                        Not -> visitInsn(INEG)
+                        Not -> {
+                            val labelIfNz = Label()
+                            val labelAfter = Label()
+                            visitJumpInsn(IFNE, labelIfNz)
+                            visitInsn(ICONST_0)
+                            visitLabel(labelIfNz)
+                            visitInsn(ICONST_1)
+                            visitLabel(labelAfter)
+                        }
                     }
                     is Binop -> when (s.kind) {
                         Plus -> visitInsn(IADD)

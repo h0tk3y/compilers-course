@@ -49,8 +49,13 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                 is Unop -> when (s.kind) {
                     Not -> {
                         emit("popl %eax")
-                        emit("neg %eax")
-                        emit("pushl %eax")
+                        emit("sub $0, %eax")
+                        emit("jnz ${functionDeclaration.name}_l${i}_nz")
+                        emit("pushl $1")
+                        emit("jmp ${functionDeclaration.name}_l${i}_after")
+                        emit("${functionDeclaration.name}_l${i}_nz:")
+                        emit("pushl $0")
+                        emit("${functionDeclaration.name}_l${i}_after:")
                     }
                 }
                 is Binop -> {
@@ -66,16 +71,24 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                         Times -> emit("imul %eax, %ebx")
                         Div -> {
                             resultRegister = "%eax"
-                            emit("xor %edx, %edx")
+                            emit("cltd")
                             emit("idiv %ebx")
                         }
                         Rem -> {
                             resultRegister = "%edx"
-                            emit("xor %edx, %edx")
+                            emit("cltd")
                             emit("idiv %ebx")
                         }
-                        And -> emit("and %eax, %ebx")
-                        Or -> emit("or %eax, %ebx")
+                        And -> {
+                            emit("and %eax, %ebx")
+                            emit("setnz %bl")
+                            emit("and $1, %ebx")
+                        }
+                        Or -> {
+                            emit("or %eax, %ebx")
+                            emit("setnz %bl")
+                            emit("and $1, %ebx")
+                        }
                         Eq, Neq, Gt, Lt, Leq, Geq -> {
                             emit("sub %eax, %ebx")
                             emit("set${setComparisonOp[s.kind]!!} %bl")
@@ -123,7 +136,7 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                 compileFunction(f, fCode)
             }
         }
-        return compilationEnvironment.result.joinToString("\n")
+        return compilationEnvironment.result.joinToString("\n") + "\n"
     }
 }
 

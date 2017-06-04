@@ -21,4 +21,5 @@ object Ret0 : StackStatement()
 data class StackProgram(val functions: Map<FunctionDeclaration, List<StackStatement>>,
                         val entryPoint: FunctionDeclaration)
 
-val StackProgram.code get() = functions[entryPoint]!!
+val StackProgram.code get() =
+    functions[entryPoint]!!

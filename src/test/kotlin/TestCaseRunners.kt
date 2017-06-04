@@ -67,6 +67,6 @@ class X86Runner : TestCaseRunner() {
         val output = compiler.compile(testCase.program)
         val exe = assemble(output)
         val out = runExe(exe, testCase.input.map { "$it" })
-        testCase.checkOutput(out.map { it.toInt() })
+        testCase.checkOutput(out.flatMap{ it.split(" ").map { it.toIntOrNull() } })
     }
 }

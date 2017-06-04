@@ -1,22 +1,23 @@
 package com.github.h0tk3y.compilersCourse.language
 
 import com.github.h0tk3y.compilersCourse.Interpreter
-import com.github.h0tk3y.compilersCourse.run
 
 data class MachineState(val input: List<Int>,
-                        val output: List<Int>,
-                        val state: (Variable) -> Int,
-                        val result: Int = 0)
+                        val output: List<Int?>,
+                        val state: Map<Variable, Int>,
+                        val result: Int = 0,
+                        val functionReferences: Map<FunctionDeclaration, Statement>)
 
 internal fun ((Variable) -> Int).andMap(mapping: Pair<Variable, Int>): (Variable) -> Int =
         { if (it == mapping.first) mapping.second else this(it) }
 
 class NaiveInterpreter : Interpreter<MachineState, Statement, List<Int>> {
-    override fun initialState(input: List<Int>) = MachineState(input, emptyList(), { throw NoSuchElementException() })
+    override fun initialState(input: List<Int>) =
+            MachineState(input, emptyList(), emptyMap(), 0, emptyMap())
 
     fun Expression.evaluate(machine: MachineState): MachineState = when (this) {
         is Const -> machine.copy(result = value)
-        is Variable -> machine.copy(result = machine.state(this))
+        is Variable -> machine.copy(result = machine.state.getValue(this))
         is UnaryOperation -> {
             val o = operand.evaluate(machine)
             o.copy(result = kind.semantics(o.result))
@@ -33,13 +34,16 @@ class NaiveInterpreter : Interpreter<MachineState, Statement, List<Int>> {
                 currentMachine = expr.evaluate(currentMachine)
                 innerContext[parameter] = currentMachine.result
             }
-            val innerMachine = currentMachine.copy(state = { innerContext[it] ?: throw NoSuchElementException() })
+            val innerMachine = currentMachine.copy(state = innerContext)
             when (f) {
                 is Intrinsic -> when (f) {
-                    is Intrinsic.READ -> machine.copy(input = machine.input.drop(1), result = machine.input.first())
-                    is Intrinsic.WRITE -> machine.copy(output = machine.output + innerContext[Intrinsic.WRITE.parameters.single()]!!)
+                    is Intrinsic.READ -> currentMachine.copy(input = currentMachine.input.drop(1), output = currentMachine.output.plus(null as Int?), result = currentMachine.input.first())
+                    is Intrinsic.WRITE -> currentMachine.copy(output = currentMachine.output + innerContext[Intrinsic.WRITE.parameters.single()]!!)
                 }
-                else -> join(innerMachine, functionDeclaration.body).copy(state = currentMachine.state)
+                else -> {
+                    val functionBody = currentMachine.functionReferences[f] ?: throw IllegalStateException("Call to an unresolved function $f")
+                    join(innerMachine, functionBody).copy(state = currentMachine.state)
+                }
             }
         }
     }
@@ -47,7 +51,7 @@ class NaiveInterpreter : Interpreter<MachineState, Statement, List<Int>> {
     override fun join(s: MachineState, p: Statement): MachineState = with(p) {
         when (this) {
             is Skip, is FunctionDeclaration -> s
-            is Assign -> expression.evaluate(s).run { copy(state = state.andMap(variable to result)) }
+            is Assign -> expression.evaluate(s).run { copy(state = state.plus(variable to result)) }
             is If -> condition.evaluate(s).run {
                 if (result != 0)
                     join(s, trueBranch) else
@@ -69,7 +73,9 @@ class NaiveInterpreter : Interpreter<MachineState, Statement, List<Int>> {
 class NaiveProgramInterpreter : Interpreter<MachineState, Program, List<Int>> {
     val interpreter = NaiveInterpreter()
 
-    override fun initialState(input: List<Int>): MachineState  = interpreter.initialState(input)
+    override fun initialState(input: List<Int>): MachineState = interpreter.initialState(input)
 
-    override fun join(s: MachineState, p: Program): MachineState = interpreter.run(p.mainFunction.body, s.input)
+    override fun join(s: MachineState, p: Program): MachineState =
+            interpreter.join(s.copy(functionReferences = p.functionDeclarations.associate { it to it.body }),
+                             p.mainFunction.body)
 }

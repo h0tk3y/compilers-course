@@ -10,7 +10,7 @@ abstract class RunAllTestCasesTest(val testCaseRunner: TestCaseRunner) {
 
     companion object {
         @Parameterized.Parameters(name = "test case: {0}")
-        @JvmStatic fun testCases() = allTestCases.toTypedArray()
+        @JvmStatic fun testCases() = allTestCases.toTypedArray().sortedBy { it.name }
     }
 
     @Test fun runTestCase() {
