@@ -4,114 +4,131 @@ import com.github.h0tk3y.compilersCourse.Compiler
 import com.github.h0tk3y.compilersCourse.exhaustive
 import com.github.h0tk3y.compilersCourse.language.*
 import com.github.h0tk3y.compilersCourse.stack.*
-import jdk.internal.org.objectweb.asm.ClassWriter
-import jdk.internal.org.objectweb.asm.Label
-import jdk.internal.org.objectweb.asm.Opcodes.*
-import jdk.internal.org.objectweb.asm.Type
+import org.objectweb.asm.ClassWriter
+import org.objectweb.asm.Label
+import org.objectweb.asm.Opcodes.*
+import org.objectweb.asm.Type.getDescriptor
+import java.io.BufferedReader
 import java.io.InputStream
 
 
-class StackToJvmCompiler : Compiler<List<StackStatement>, ByteArray> {
-    override fun compile(source: List<StackStatement>): ByteArray {
-        val cw = ClassWriter(ClassWriter.COMPUTE_MAXS)
+class StackToJvmCompiler : Compiler<StackProgram, ByteArray> {
+    private val brDescriptor = getDescriptor(BufferedReader::class.java)
 
+    private fun compileIntrinsics(cw: ClassWriter) {
+        cw.visitField(ACC_PRIVATE, "input", brDescriptor, null, null)
+    }
+
+    override fun compile(source: StackProgram): ByteArray {
+        val cw = ClassWriter(ClassWriter.COMPUTE_MAXS)
         cw.visit(V1_6, ACC_PUBLIC + ACC_SUPER, "Program", null, "java/lang/Object", emptyArray())
 
-        val ctor = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null)
-        ctor.visitMaxs(10, 5)
-        ctor.visitVarInsn(ALOAD, 0)
-        ctor.visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false)
-        ctor.visitInsn(RETURN)
-        ctor.visitMaxs(-1, -1)
-        ctor.visitEnd()
-
-        val mv = cw.visitMethod(ACC_PUBLIC + ACC_STATIC, "main", "([Ljava/lang/String;)V", null, null)
-        ctor.visitMaxs(10, 5)
-        val beginLabel = Label().apply { info = "begin" }
-        val endLabel = Label().apply { info = "end" }
-        mv.visitLabel(beginLabel)
-
-        val inputLocalVarIndex = 1
-        mv.visitLocalVariable("input", "Ljava/io/BufferedReader;", null, beginLabel, endLabel, inputLocalVarIndex)
-        mv.visitTypeInsn(NEW, "java/io/BufferedReader")
-        mv.visitInsn(DUP)
-        mv.visitTypeInsn(NEW, "java/io/InputStreamReader")
-        mv.visitInsn(DUP)
-        mv.visitFieldInsn(GETSTATIC, "java/lang/System", "in", Type.getDescriptor(InputStream::class.java))
-        mv.visitMethodInsn(INVOKESPECIAL, "java/io/InputStreamReader", "<init>", "(Ljava/io/InputStream;)V", false)
-        mv.visitMethodInsn(INVOKESPECIAL, "java/io/BufferedReader", "<init>", "(Ljava/io/Reader;)V", false)
-        mv.visitVarInsn(ASTORE, inputLocalVarIndex)
-
-        val variables = collectVariables(source)
-        val variablesMap = variables.withIndex().associate { (index, it) -> it to index + 2 }
-        variablesMap.forEach { (v, index) -> mv.visitLocalVariable(v.name, "I", null, beginLabel, endLabel, index) }
-
-        val labels = (source + NOP).map { Label().apply { info = it; } }
-
-        for ((index, s) in source.withIndex()) {
-            mv.visitLabel(labels[index])
-
-            when (s) {
-                Nop -> mv.visitInsn(NOP)
-
-                is Push -> mv.visitLdcInsn(s.constant.value)
-                is Ld -> mv.visitVarInsn(ILOAD, variablesMap[s.v]!!)
-                is St -> mv.visitVarInsn(ISTORE, variablesMap[s.v]!!)
-                is Unop -> when (s.kind) {
-                    Not -> mv.visitInsn(INEG)
-                }
-                is Binop -> when (s.kind) {
-                    Plus -> mv.visitInsn(IADD)
-                    Minus -> mv.visitInsn(ISUB)
-                    Times -> mv.visitInsn(IMUL)
-                    Div -> mv.visitInsn(IDIV)
-                    Rem -> mv.visitInsn(IREM)
-                    And -> mv.visitInsn(IAND)
-                    Or -> mv.visitInsn(IOR)
-                    Eq, Neq, Gt, Lt, Leq, Geq -> {
-                        val labelOtherwise = Label()
-                        val labelAfter = Label()
-                        mv.visitJumpInsn(checkOtherwiseOp[s.kind]!!, labelOtherwise)
-                        mv.visitInsn(ICONST_1)
-                        mv.visitJumpInsn(GOTO, labelAfter)
-                        mv.visitLabel(labelOtherwise)
-                        mv.visitInsn(ICONST_0)
-                        mv.visitLabel(labelAfter)
-                    }
-                }.exhaustive
-                is Jmp -> mv.visitJumpInsn(GOTO, labels[s.nextInstruction])
-                is Jz -> {
-                    mv.visitInsn(ICONST_0)
-                    mv.visitJumpInsn(IF_ICMPEQ, labels[s.nextInstruction])
-                }
-                is Call -> when (s.function) {
-                    is Intrinsic -> when (s.function) {
-                        Intrinsic.READ -> {
-                            mv.visitVarInsn(ALOAD, inputLocalVarIndex)
-                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/BufferedReader", "readLine", "()Ljava/lang/String;", false)
-                            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "parseInt", "(Ljava/lang/String;)I", false)
-                        }
-                        Intrinsic.WRITE -> {
-                            mv.visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;")
-                            mv.visitInsn(SWAP)
-                            mv.visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(I)V", false)
-                        }
-                    }
-                    else -> TODO()
-                }
-                PreArgs -> TODO()
-                Ret0 -> TODO()
-                Ret1 -> TODO()
-                Pop -> mv.visitInsn(POP)
-            }.exhaustive
+        cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null).apply {
+            visitVarInsn(ALOAD, 0)
+            visitMethodInsn(INVOKESPECIAL, "java/lang/Object", "<init>", "()V", false)
+            visitInsn(RETURN)
+            visitMaxs(-1, -1)
+            visitEnd()
         }
 
-        mv.visitLabel(labels.last())
-        mv.visitInsn(RETURN)
-        mv.visitMaxs(-1, -1)
-        mv.visitEnd()
+        cw.visitMethod(ACC_PUBLIC, "<clinit>", "()V", null, null).apply {
+            visitTypeInsn(NEW, "java/io/BufferedReader")
+            visitInsn(DUP)
+            visitTypeInsn(NEW, "java/io/InputStreamReader")
+            visitInsn(DUP)
+            visitFieldInsn(GETSTATIC, "java/lang/System", "in", getDescriptor(InputStream::class.java))
+            visitMethodInsn(INVOKESPECIAL, "java/io/InputStreamReader", "<init>", "(Ljava/io/InputStream;)V", false)
+            visitMethodInsn(INVOKESPECIAL, "java/io/BufferedReader", "<init>", "(Ljava/io/Reader;)V", false)
+            visitFieldInsn(PUTSTATIC, "Program", "input", brDescriptor)
+            visitInsn(RETURN)
+            visitMaxs(-1, -1)
+            visitEnd()
+        }
+
+        source.functions.forEach { (declaration, code) -> compileFunction(declaration, code, cw, declaration == source.entryPoint) }
 
         return cw.toByteArray()
+    }
+
+    private fun compileFunction(declaration: FunctionDeclaration, source: List<StackStatement>, cw: ClassWriter, isMain: Boolean) {
+        val signature = if (isMain)
+            "([Ljava/lang/String;)V" else
+            "(${(1..declaration.parameters.size).map { "I" }.joinToString("")})V"
+
+        cw.visitMethod(ACC_PUBLIC + ACC_STATIC, declaration.name, signature, null, null).apply {
+            val beginLabel = Label().apply { info = "begin" }
+            val endLabel = Label().apply { info = "end" }
+            visitLabel(beginLabel)
+
+            val variables = collectVariables(source)
+            val variablesMap = variables.withIndex().associate { (index, it) -> it to index + 2 }
+            variablesMap.forEach { (v, index) -> visitLocalVariable(v.name, "I", null, beginLabel, endLabel, index) }
+
+            val labels = (source + NOP).map { Label().apply { info = it; } }
+
+            for ((index, s) in source.withIndex()) {
+                visitLabel(labels[index])
+
+                when (s) {
+                    Nop -> visitInsn(NOP)
+
+                    is Push -> visitLdcInsn(s.constant.value)
+                    is Ld -> visitVarInsn(ILOAD, variablesMap[s.v]!!)
+                    is St -> visitVarInsn(ISTORE, variablesMap[s.v]!!)
+                    is Unop -> when (s.kind) {
+                        Not -> visitInsn(INEG)
+                    }
+                    is Binop -> when (s.kind) {
+                        Plus -> visitInsn(IADD)
+                        Minus -> visitInsn(ISUB)
+                        Times -> visitInsn(IMUL)
+                        Div -> visitInsn(IDIV)
+                        Rem -> visitInsn(IREM)
+                        And -> visitInsn(IAND)
+                        Or -> visitInsn(IOR)
+                        Eq, Neq, Gt, Lt, Leq, Geq -> {
+                            val labelOtherwise = Label()
+                            val labelAfter = Label()
+                            visitJumpInsn(checkOtherwiseOp[s.kind]!!, labelOtherwise)
+                            visitInsn(ICONST_1)
+                            visitJumpInsn(GOTO, labelAfter)
+                            visitLabel(labelOtherwise)
+                            visitInsn(ICONST_0)
+                            visitLabel(labelAfter)
+                        }
+                    }.exhaustive
+                    is Jmp -> visitJumpInsn(GOTO, labels[s.nextInstruction])
+                    is Jz -> {
+                        visitInsn(ICONST_0)
+                        visitJumpInsn(IF_ICMPEQ, labels[s.nextInstruction])
+                    }
+                    is Call -> when (s.function) {
+                        is Intrinsic -> when (s.function) {
+                            Intrinsic.READ -> {
+                                visitFieldInsn(GETSTATIC, "Program", "input", brDescriptor)
+                                visitMethodInsn(INVOKEVIRTUAL, "java/io/BufferedReader", "readLine", "()Ljava/lang/String;", false)
+                                visitMethodInsn(INVOKESTATIC, "java/lang/Integer", "parseInt", "(Ljava/lang/String;)I", false)
+                            }
+                            Intrinsic.WRITE -> {
+                                visitFieldInsn(GETSTATIC, "java/lang/System", "out", "Ljava/io/PrintStream;")
+                                visitInsn(SWAP)
+                                visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(I)V", false)
+                            }
+                        }
+                        else -> TODO()
+                    }
+                    PreArgs -> TODO()
+                    Ret0 -> TODO()
+                    Ret1 -> TODO()
+                    Pop -> visitInsn(POP)
+                }.exhaustive
+            }
+
+            visitLabel(labels.last())
+            visitInsn(RETURN)
+            visitMaxs(-1, -1)
+            visitEnd()
+        }
     }
 
     val checkOtherwiseOp = mapOf(Eq to IF_ICMPNE,

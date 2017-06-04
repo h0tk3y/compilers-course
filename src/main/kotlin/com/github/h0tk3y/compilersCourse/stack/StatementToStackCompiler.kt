@@ -6,7 +6,7 @@ import com.github.h0tk3y.compilersCourse.language.*
 
 class StatementToStackCompiler : Compiler<Program, StackProgram> {
     override fun compile(source: Program): StackProgram {
-        val functionBodies = source.functionDeclaration.associate { it to compileFunction(it.body) }
+        val functionBodies = source.functionDeclarations.associate { it to compileFunction(it.body) }
         return StackProgram(functionBodies, source.mainFunction)
     }
 

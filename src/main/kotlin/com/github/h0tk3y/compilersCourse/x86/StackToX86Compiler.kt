@@ -127,4 +127,4 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
     }
 }
 
-private val setComparisonOp = mapOf(Eq to "z", Neq to "nz", Gt to "g", Lt to "l", Leq to "le", Geq to "ge")
+private val setComparisonOp = mapOf(Eq to "z", Neq to "nz", Gt to "l", Lt to "g", Leq to "ge", Geq to "le")

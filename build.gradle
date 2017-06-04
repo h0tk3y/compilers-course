@@ -22,6 +22,8 @@ repositories {
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$kotlin_version"
     compile "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
-    compile 'org.ow2.asm:asm:5.0.3'
+    compile 'org.ow2.asm:asm:6.0_ALPHA'
     compile 'me.sargunvohra.lib:cakeparse:1.1.1'
-    testCompile "junit:junit:4.12" }
+    testCompile "junit:junit:4.12"
+    testCompile 'pl.pragmatists:JUnitParams:1.0.5'
+}

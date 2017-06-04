@@ -126,19 +126,59 @@ private val functionDeclaration: Parser<FunctionDeclaration> =
 
 private val statementsChain: Parser<Statement> = separated(statement, SEMI).map { chainOf(*it.terms.toTypedArray()) }
 
-private val program: Parser<Program> = oneOrMore(functionDeclaration or (statement before optional(SEMI))).map {
+private val programParser: Parser<Program> = oneOrMore(functionDeclaration or (statement before optional(SEMI))).map {
     val functions = it.filterIsInstance<FunctionDeclaration>()
     val statements = it.filterIsInstance<Statement>()
     val rootFunc = FunctionDeclaration("main", listOf(), chainOf(*statements.toTypedArray()))
     Program(functions + rootFunc, rootFunc)
 }
 
-fun main(args: Array<String>) {
-    val text = """
-        x := read();
-        y := read();
-        z := y*y;
-        write (x+z)
-        """.trimIndent()
-    val result = tokens.lexer().lex(text).parseToEnd(program)
+@Suppress("UNCHECKED_CAST")
+fun resolveCalls(program: Program): Program {
+
+    val namedFunctions = (program.functionDeclarations + Intrinsic.declarations)
+            .groupBy { it.name }
+            .mapValues { (_, v) -> v.associateBy { it.parameters.size } }
+
+    fun resolve(name: String, nArgs: Int) = namedFunctions[name]?.let { it[nArgs] }
+                                            ?: throw IllegalStateException("Unresolved function $name, $nArgs arguments.")
+
+    fun <T : Expression> resolveCallsIn(expression: Expression): T = when (expression) {
+        is Const -> expression
+        is Variable -> expression
+        is FunctionCall -> {
+            val resolvedArgs = expression.argumentExpressions.map<Expression, Expression>(::resolveCallsIn)
+            if (expression.functionDeclaration is UnresolvedFunction) {
+                val name = expression.functionDeclaration.name
+                val nArgs = expression.functionDeclaration.dimensions
+                expression.copy(resolve(name, nArgs), resolvedArgs)
+            } else {
+                expression.copy(argumentExpressions = resolvedArgs)
+            }
+        }
+        is UnaryOperation -> expression.copy(resolveCallsIn(expression.operand))
+        is BinaryOperation -> expression.copy(left = resolveCallsIn(expression.left),
+                                              right = resolveCallsIn(expression.right))
+    } as T
+
+    fun resolveCallsInStatement(s: Statement): Statement = when (s) {
+        Skip -> Skip
+        is Assign -> s.copy(expression = resolveCallsIn(s.expression))
+        is If -> s.copy(resolveCallsIn(s.condition), resolveCallsInStatement(s.trueBranch), resolveCallsInStatement(s.falseBranch))
+        is While -> s.copy(resolveCallsIn(s.condition), resolveCallsInStatement(s.body))
+        is Chain -> s.copy(resolveCallsInStatement(s.leftPart), resolveCallsInStatement(s.rightPart))
+        is Return -> s.copy(resolveCallsIn(s.expression))
+        is FunctionCallStatement -> s.copy(resolveCallsIn(s.functionCall))
+    }
+
+    fun resolveCallsInFunction(f: FunctionDeclaration) = FunctionDeclaration(f.name, f.parameters, resolveCallsInStatement(f.body))
+
+    val mainResolved = resolveCallsInFunction(program.mainFunction)
+    return Program(program.functionDeclarations.filter { it !== program.mainFunction }.map { resolveCallsInFunction(it) } + mainResolved,
+                   mainResolved)
+}
+
+internal fun readProgram(text: String): Program {
+    val parsed = tokens.lexer().lex(text).parseToEnd(programParser).value
+    return resolveCalls(parsed)
 }
