@@ -35,18 +35,20 @@ object Lt : BinaryOperationKind()
 object Leq : BinaryOperationKind()
 object Geq : BinaryOperationKind()
 
+fun Boolean.asBit() = if (this) 1 else 0
+
 fun BinaryOperationKind.semantics(l: Int, r: Int) = when (this) {
     Plus -> l + r
     Minus -> l - r
     Times -> l * r
     Div -> l / r
     Rem -> l % r
-    And -> if (l != 0 && r != 0) 1 else 0
-    Or -> if (l != 0 || r != 0) 1 else 0
-    Eq -> if (l == r) 1 else 0
-    Neq -> if (l != r) 1 else 0
-    Gt -> if (l > r) 1 else 0
-    Lt -> if (l < r) 1 else 0
-    Leq -> if (l <= r) 1 else 0
-    Geq -> if (l >= r) 1 else 0
+    And -> (l != 0 && r != 0).asBit()
+    Or -> (l != 0 || r != 0).asBit()
+    Eq -> (l == r).asBit()
+    Neq -> (l != r).asBit()
+    Gt -> (l > r).asBit()
+    Lt -> (l < r).asBit()
+    Leq -> (l <= r).asBit()
+    Geq -> (l >= r).asBit()
 }

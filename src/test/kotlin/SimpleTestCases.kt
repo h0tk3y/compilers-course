@@ -2,7 +2,7 @@ val allTestCases = mutableListOf<TestCase>()
 fun TestCase.register() = also { allTestCases.add(it) }
 fun Iterable<TestCase>.register() = apply { forEach { allTestCases.add(it) } }
 
-val triggerInit = run { simpleParsed; simpleParsedWithFun; fileTestCases }
+val triggerInit = run { simpleParsed; simpleParsedWithFun; }
 
 val factorialTestCases = (2..10).map { n ->
     TestCaseCheckOutput("factorial $n", programOf(factorial), listOf(n)) { output -> output.last() == (1..n).reduce(Int::times) }

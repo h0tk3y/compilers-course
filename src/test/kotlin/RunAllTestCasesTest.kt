@@ -4,22 +4,47 @@ import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 
 @RunWith(Parameterized::class)
-abstract class RunAllTestCasesTest(val testCaseRunner: TestCaseRunner) {
+abstract class RunAllTestCases {
     @Parameterized.Parameter(value = 0)
     lateinit var testCase: TestCase
 
-    companion object {
-        @Parameterized.Parameters(name = "test case: {0}")
-        @JvmStatic fun testCases() = allTestCases.toTypedArray().sortedBy { it.name }
+    val interpreterRunner = InterpreterRunner()
+    val stackRunner = StackRunner()
+    val x86Runner = X86Runner()
+
+    @Test fun runWithInterpreter() {
+        interpreterRunner.runTestCase(testCase)
     }
 
-    @Test fun runTestCase() {
-        testCaseRunner.runTestCase(testCase)
+    @Test fun runWithStack() {
+        stackRunner.runTestCase(testCase)
+    }
+
+    @Test fun runWithX86() {
+        x86Runner.runTestCase(testCase)
     }
 }
 
-class RunAllTestCasesInterpreter : RunAllTestCasesTest(InterpreterRunner())
+@RunWith(Parameterized::class)
+class RunCoreTestCases : RunAllTestCases() {
+    companion object {
+        @Parameterized.Parameters(name = "test case: {0}")
+        @JvmStatic fun testCases() = coreTestsNoArrays
+    }
+}
 
-class RunAllTestCasesStack : RunAllTestCasesTest(StackRunner())
+@RunWith(Parameterized::class)
+class RunExpressionTestCases : RunAllTestCases() {
+    companion object {
+        @Parameterized.Parameters(name = "test case: {0}")
+        @JvmStatic fun testCases() = expressionTests
+    }
+}
 
-class RunAllTestCasesX86 : RunAllTestCasesTest(X86Runner())
+@RunWith(Parameterized::class)
+class RunDeepExpressionTestCases : RunAllTestCases() {
+    companion object {
+        @Parameterized.Parameters(name = "test case: {0}")
+        @JvmStatic fun testCases() = deepExpressionTests
+    }
+}
