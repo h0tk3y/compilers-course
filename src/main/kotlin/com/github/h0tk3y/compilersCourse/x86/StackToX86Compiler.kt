@@ -52,7 +52,7 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                 is Unop -> when (s.kind) {
                     Not -> {
                         emit("popl %eax")
-                        emit("sub $0, %eax")
+                        emit("cmp $0, %eax")
                         emit("jnz ${functionDeclaration.name}_l${i}_nz")
                         emit("pushl $1")
                         emit("jmp ${functionDeclaration.name}_l${i}_after")
@@ -83,19 +83,27 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                             emit("idiv %ebx")
                         }
                         And -> {
-                            emit("and %eax, %ebx")
+                            emit("and %eax, %eax")
+                            emit("setnz %al")
+                            emit("and $1, %eax")
+                            emit("and %ebx, %ebx")
                             emit("setnz %bl")
                             emit("and $1, %ebx")
+                            emit("and %eax, %ebx")
                         }
                         Or -> {
-                            emit("or %eax, %ebx")
+                            emit("and %eax, %eax")
+                            emit("setnz %al")
+                            emit("and $1, %eax")
+                            emit("and %ebx, %ebx")
                             emit("setnz %bl")
                             emit("and $1, %ebx")
+                            emit("or %eax, %ebx")
                         }
                         Eq, Neq, Gt, Lt, Leq, Geq -> {
-                            emit("sub %eax, %ebx")
+                            emit("subl %eax, %ebx")
                             emit("set${setComparisonOp[s.kind]!!} %bl")
-                            emit("and $1, %ebx")
+                            emit("andl $1, %ebx")
                         }
                     }
                     emit("pushl $resultRegister")
