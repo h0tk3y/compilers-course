@@ -40,7 +40,7 @@ class X86Runner : TestCaseRunner() {
         val tmpDir = Files.createTempDirectory(null).toFile()
         val asmFile = File(tmpDir, "asm.s").apply { writeText(asm) }
         val exeFile = File(tmpDir, "output.exe")
-        val cmd = arrayOf("gcc", "-m32", "C:/ubuntu-usr/intrinsics-win.o", asmFile.absolutePath,
+        val cmd = arrayOf("gcc", "-m32", File("runtime/intrinsics-win.o").absolutePath, asmFile.absolutePath,
                           "-o", exeFile.absolutePath)
         val exec = Runtime.getRuntime().exec(cmd)
         exec.waitFor()
