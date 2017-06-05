@@ -5,18 +5,37 @@ import com.github.h0tk3y.compilersCourse.exhaustive
 import com.github.h0tk3y.compilersCourse.language.*
 
 class StatementToStackCompiler : Compiler<Program, StackProgram> {
-    override fun compile(source: Program): StackProgram {
-        val functionBodies = source.functionDeclarations.associate { it to compileFunction(it.body) }
-        return StackProgram(functionBodies, source.mainFunction)
+    class CompilationEnvironment {
+        val stringPool = mutableListOf<CharArray>()
+
+        fun saveStringToPool(stringLiteral: StringLiteral): Int {
+            val charArray = stringLiteral.value.toCharArray()
+            return stringPool.withIndex().firstOrNull { (_, v) -> v.contentEquals(charArray) }?.index ?: run {
+                val result = stringPool.size
+                stringPool.add(stringLiteral.value.toCharArray())
+                result
+            }
+        }
     }
 
-    private fun compileFunction(source: Statement): List<StackStatement> {
+    override fun compile(source: Program): StackProgram {
+        val environment = CompilationEnvironment()
+        val functionBodies = source.functionDeclarations.associate { it to environment.compileFunction(it.body) }
+        return StackProgram(functionBodies, source.mainFunction, environment.stringPool)
+    }
+
+    private fun CompilationEnvironment.compileFunction(source: Statement): List<StackStatement> {
         val program = arrayListOf<StackStatement?>()
         fun emit(stackStatement: StackStatement) = program.add(stackStatement).run { }
 
         fun compileExpression(expression: Expression): Unit {
             when (expression) {
                 is Const -> emit(Push(expression))
+                is StringLiteral -> {
+                    val stringIndex = saveStringToPool(expression)
+                    emit(PushPooled(stringIndex))
+                    emit(Call(Intrinsic.STRDUP))
+                }
                 is Variable -> emit(Ld(expression))
                 is UnaryOperation -> {
                     compileExpression(expression.operand)

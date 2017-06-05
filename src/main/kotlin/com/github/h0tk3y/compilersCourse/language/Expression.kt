@@ -3,6 +3,7 @@ package com.github.h0tk3y.compilersCourse.language
 sealed class Expression
 
 data class Const(val value: Int) : Expression()
+data class StringLiteral(val value: String) : Expression()
 data class Variable(val name: String) : Expression()
 
 data class FunctionCall(val functionDeclaration: FunctionDeclaration,

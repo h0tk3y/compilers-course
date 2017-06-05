@@ -1,11 +1,12 @@
 package com.github.h0tk3y.compilersCourse.language
 
 import com.github.h0tk3y.compilersCourse.Interpreter
+import com.github.h0tk3y.compilersCourse.exhaustive
 
 data class MachineState(val input: List<Int>,
                         val output: List<Int?>,
-                        val state: Map<Variable, Int>,
-                        val result: Int = 0,
+                        val state: Map<Variable, Any>,
+                        val result: Any,
                         val functionReferences: Map<FunctionDeclaration, Statement>)
 
 internal fun ((Variable) -> Int).andMap(mapping: Pair<Variable, Int>): (Variable) -> Int =
@@ -17,34 +18,61 @@ class NaiveInterpreter : Interpreter<MachineState, Statement, List<Int>> {
 
     fun Expression.evaluate(machine: MachineState): MachineState = when (this) {
         is Const -> machine.copy(result = value)
-        is Variable -> machine.copy(result = machine.state.getValue(this))
+        is Variable ->
+            machine.copy(result = machine.state.getValue(this))
         is UnaryOperation -> {
             val o = operand.evaluate(machine)
-            o.copy(result = kind.semantics(o.result))
+            o.copy(result = kind.semantics(o.result as Int))
         }
         is BinaryOperation -> {
             val l = left.evaluate(machine)
             val r = right.evaluate(l)
-            r.copy(result = kind.semantics(l.result, r.result))
+            r.copy(result = kind.semantics(l.result as Int, r.result as Int))
         }
         is FunctionCall -> this.functionDeclaration.let { f ->
             var currentMachine = machine
-            val innerContext = mutableMapOf<Variable, Int>()
+            val innerContext = mutableMapOf<Variable, Any>()
             for ((parameter, expr) in functionDeclaration.parameters.zip(argumentExpressions)) {
                 currentMachine = expr.evaluate(currentMachine)
                 innerContext[parameter] = currentMachine.result
             }
-            val innerMachine = currentMachine.copy(state = innerContext)
+            val ps = functionDeclaration.parameters
             when (f) {
                 is Intrinsic -> when (f) {
-                    is Intrinsic.READ -> currentMachine.copy(input = currentMachine.input.drop(1), output = currentMachine.output.plus(null as Int?), result = currentMachine.input.first())
-                    is Intrinsic.WRITE -> currentMachine.copy(output = currentMachine.output + innerContext[Intrinsic.WRITE.parameters.single()]!!)
-                }
+                    Intrinsic.READ -> currentMachine.copy(input = currentMachine.input.drop(1), output = currentMachine.output.plus(null as Int?), result = currentMachine.input.first())
+                    Intrinsic.WRITE -> currentMachine.copy(output = currentMachine.output + innerContext[ps[0]]!! as Int)
+                    Intrinsic.STRMAKE -> currentMachine.copy(result = CharArray(innerContext[ps[0]] as Int) { (innerContext[ps[1]] as Int).toChar() })
+                    Intrinsic.STRCMP -> currentMachine.copy(result = String(innerContext[ps[0]] as CharArray).compareTo(String(innerContext[ps[1]] as CharArray)))
+                    Intrinsic.STRGET -> currentMachine.copy(result = (innerContext[ps[0]] as CharArray)[innerContext[ps[1]] as Int].toInt())
+                    Intrinsic.STRDUP -> currentMachine.copy(result = (innerContext[ps[0]] as CharArray).copyOf())
+                    Intrinsic.STRSET -> {
+                        val s = innerContext[ps[0]] as CharArray
+                        val i = innerContext[ps[1]] as Int
+                        val c = innerContext[ps[2]] as Int
+                        currentMachine.copy(result = 0.apply { s[i] = c.toChar() })
+                    }
+                    Intrinsic.STRCAT -> {
+                        val s1 = innerContext[ps[0]] as CharArray
+                        val s2 = innerContext[ps[1]] as CharArray
+                        currentMachine.copy(result = s1 + s2)
+                    }
+                    Intrinsic.STRSUB -> {
+                        val s = innerContext[ps[0]] as CharArray
+                        val from = innerContext[ps[1]] as Int
+                        val n = innerContext[ps[2]] as Int
+                        currentMachine.copy(result = s.copyOfRange(from, from + n))
+                    }
+                    Intrinsic.STRLEN -> currentMachine.copy(result = (innerContext[ps[0]] as CharArray).size)
+                }.exhaustive
                 else -> {
+                    val innerMachine = currentMachine.copy(state = innerContext)
                     val functionBody = currentMachine.functionReferences[f] ?: throw IllegalStateException("Call to an unresolved function $f")
                     join(innerMachine, functionBody).copy(state = currentMachine.state)
                 }
-            }
+            }.exhaustive
+        }
+        is StringLiteral -> {
+            machine.copy(result = value.toCharArray())
         }
     }
 

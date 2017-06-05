@@ -62,7 +62,12 @@ private val END = token("END", "end\\b")
 private val FUN = token("FUN", "fun\\b")
 private val RETURN = token("RETURN", "return\\b")
 
+private val TRUE = token("TRUE", "true\\b")
+private val FALSE = token("FALSE", "false\\b")
+
 private val NUMBER = token("NUMBER", "\\d+")
+private val CHARLIT = token("CHARLIT", "'.'")
+private val STRINGLIT = token("STRINGLIT", "\".*?\"")
 private val ID = token("ID", "\\w+")
 
 private val WS = token("WS", "\\s+", ignore = true)
@@ -83,17 +88,20 @@ private val signToKind = mapOf<Token, BinaryOperationKind>(
         DIV to Div,
         MOD to Rem)
 
-private val const = NUMBER.map { Const(it.raw.toInt()) }
+private val const = NUMBER.map { Const(it.raw.toInt()) } or CHARLIT.map { Const(it.raw[1].toInt()) } or TRUE.map { Const(1) } or FALSE.map { Const(0) }
+
 private val funCall: Parser<FunctionCall> =
         (ID and (LPAR then separated(ref(::expr), COMMA, acceptZero = true).values() before RPAR))
                 .map { (name, args) -> FunctionCall(UnresolvedFunction(name.raw, args.size), args) }
 
 private val variable = ID.map { Variable(it.raw) }
 
+private val stringLiteral = STRINGLIT.map { StringLiteral(it.raw.removeSurrounding("\"", "\"")) }
+
 private val notTerm = (NOT then ref(::term)).map { UnaryOperation(it, Not) }
 private val parenTerm = LPAR then ref(::expr) before RPAR
 
-private val term: Parser<Expression> = const or funCall or notTerm or variable or parenTerm
+private val term: Parser<Expression> = const or funCall or notTerm or variable or parenTerm or stringLiteral
 
 val multiplicationOperator = TIMES or DIV or MOD
 val multiplicationOrTerm = leftAssociative(term, multiplicationOperator) { l, o, r ->
@@ -185,14 +193,8 @@ fun main(args: Array<String>) {
     val x3 = 3
 //    val expr = ((((((x0<=x0)<=x2-362)>=((454!=x2)!=(x2>4))&&(444+724!=(x3!=x0))==(83-x2<=784+635))>(((x1>=x2)==(370>720))*((x3>x2)-(x1<=869))!=((x2==x3)!=(346&&243)!!x0-x0<=154*430)))!=(((499&&143)-(x0>489))-((162!=252)==(x3<129))>=((405+x2)*(x0<=568)!=(414*x1!=(x1>613))))*(((x1>129)<=(561<x1)!!(34>275)==(813==557))<=((604!!x1)==(x1<475))+((x1==x0)<(554!=x1)))!!(((602!!x2)==(270>x3))*((x2<608)-x2*x1)!=((223!!65)<x2+x1)+((865<=x0)-(708<762)))-(((794!=856)>=(x2>856))-(107*x2-(458&&x2))&&(x1+x3>=531-x0)<((230<x0)>(x2!!617)))<((((402!=72)==x0-x3!!(585!!329)<(x3&&x1))<=((527&&426)>x3+x1)-((x1<=x2)<=(x0==105)))>=(((173!=843)*(117<=x0)<((734>x3)!=849-x2))==(((596<=870)<(x2<x0))<=((x0==x2)>(401<x1))))))!!((((((x3>x0)>=(409&&x2))>(x1<=13)+(299-x0))==(((366!=x3)<=(633!!x1))<((367==135)>=x0+334)))>(((x2&&x1)>=(154>721))*((569!!x1)>(x2<=47))>=(((x2<x2)>=573*x2)!=(465-x2<(85>=x3)))))<=((((837>=77)-(100<=886)>=(231==x3)+x1*x3)!=((705*x0&&334-x0)>=(x3==x2&&x2<444)))<((x0*68<=(x3==933))*((290&&890)==338-594)>((455==x1)+(523>=x3)>=(x2<x1)+(778-x0)))))==(((613+273)*(x0!!x0)+(630+983<926-889))*((935*629>(x2<x0))>(x2==748)-x3*557)-((x1-x1)*(585*x0)>(x0<493!!x0==x3))*(((778!!516)==(x2!=268))*(980-6&&478!=x1))<=(((137>=x3)==(449==x3))+((720>598)>x2+x2)>=((122!=x0)<(x3&&335))-(614>x2&&(852&&174)))*((931<=453&&950<x2)+((x3!!x0)-(247>=676))!!((x0!=917)<=(4!=x1))>(x3*924>(x2<x2)))))
     val f = """
-skip;
-x0 := read();
-x1 := read();
-x2 := read();
-x3 := read();
-y := ((((((x0<=x0)<=x2-362)>=((454!=x2)!=(x2>4))&&(444+724!=(x3!=x0))==(83-x2<=784+635))>(((x1>=x2)==(370>720))*((x3>x2)-(x1<=869))!=((x2==x3)!=(346&&243)!!x0-x0<=154*430)))!=(((499&&143)-(x0>489))-((162!=252)==(x3<129))>=((405+x2)*(x0<=568)!=(414*x1!=(x1>613))))*(((x1>129)<=(561<x1)!!(34>275)==(813==557))<=((604!!x1)==(x1<475))+((x1==x0)<(554!=x1)))!!(((602!!x2)==(270>x3))*((x2<608)-x2*x1)!=((223!!65)<x2+x1)+((865<=x0)-(708<762)))-(((794!=856)>=(x2>856))-(107*x2-(458&&x2))&&(x1+x3>=531-x0)<((230<x0)>(x2!!617)))<((((402!=72)==x0-x3!!(585!!329)<(x3&&x1))<=((527&&426)>x3+x1)-((x1<=x2)<=(x0==105)))>=(((173!=843)*(117<=x0)<((734>x3)!=849-x2))==(((596<=870)<(x2<x0))<=((x0==x2)>(401<x1))))))!!((((((x3>x0)>=(409&&x2))>(x1<=13)+(299-x0))==(((366!=x3)<=(633!!x1))<((367==135)>=x0+334)))>(((x2&&x1)>=(154>721))*((569!!x1)>(x2<=47))>=(((x2<x2)>=573*x2)!=(465-x2<(85>=x3)))))<=((((837>=77)-(100<=886)>=(231==x3)+x1*x3)!=((705*x0&&334-x0)>=(x3==x2&&x2<444)))<((x0*68<=(x3==933))*((290&&890)==338-594)>((455==x1)+(523>=x3)>=(x2<x1)+(778-x0)))))==(((613+273)*(x0!!x0)+(630+983<926-889))*((935*629>(x2<x0))>(x2==748)-x3*557)-((x1-x1)*(585*x0)>(x0<493!!x0==x3))*(((778!!516)==(x2!=268))*(980-6&&478!=x1))<=(((137>=x3)==(449==x3))+((720>598)>x2+x2)>=((122!=x0)<(x3&&335))-(614>x2&&(852&&174)))*((931<=453&&950<x2)+((x3!!x0)-(247>=676))!!((x0!=917)<=(4!=x1))>(x3*924>(x2<x2)))));
-write (y)
+printStr (S);
 """
-    val message = tokens.lexer().lex(f).parseToEnd(programParser).value
+    val message = tokens.lexer().lex(f).parseToEnd(statementsChain).value
     println(message)
 }

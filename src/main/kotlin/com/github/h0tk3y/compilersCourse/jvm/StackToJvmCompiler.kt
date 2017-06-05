@@ -128,13 +128,21 @@ class StackToJvmCompiler : Compiler<StackProgram, ByteArray> {
                                 visitInsn(SWAP)
                                 visitMethodInsn(INVOKEVIRTUAL, "java/io/PrintStream", "println", "(I)V", false)
                             }
+                            Intrinsic.STRMAKE -> TODO()
+                            Intrinsic.STRCMP -> TODO()
+                            Intrinsic.STRGET -> TODO()
+                            Intrinsic.STRDUP -> TODO()
+                            Intrinsic.STRSET -> TODO()
+                            Intrinsic.STRCAT -> TODO()
+                            Intrinsic.STRSUB -> TODO()
+                            Intrinsic.STRLEN -> TODO()
                         }
                         else -> TODO()
                     }
-                    PreArgs -> TODO()
                     Ret0 -> TODO()
                     Ret1 -> TODO()
                     Pop -> visitInsn(POP)
+                    is PushPooled -> TODO()
                 }.exhaustive
             }
 

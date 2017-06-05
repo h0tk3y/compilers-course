@@ -14,6 +14,8 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
         TargetPlatform.WIN -> "_$name"
     }
 
+    fun formatPooledStringId(id: Int) = "_pooled_string_$id"
+
     class CompilationEnvironment(val program: StackProgram) {
         val result = mutableListOf<String>()
 
@@ -31,7 +33,7 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
 
         val functionScope = collectVariables(source)
         val locals = functionScope - functionDeclaration.parameters
-        val localOffsets = locals.asSequence().zip(generateSequence(0) { it - 4 }).toMap()
+        val localOffsets = locals.asSequence().zip(generateSequence(-4) { it - 4 }).toMap()
         val stackOffset = (localOffsets.entries.lastOrNull()?.value?.let { it - 4 } ?: 0)
         val paramOffsets = functionDeclaration.parameters.asSequence().zip(generateSequence(8) { it + 4 }).toMap()
         emit("add \$$stackOffset, %esp")
@@ -44,6 +46,7 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
             when (s) {
                 Nop -> Unit
                 is Push -> emit("pushl \$${s.constant.value}")
+                is PushPooled -> emit("pushl \$" + formatPooledStringId(s.id))
                 is Ld -> emit("pushl ${varOffsets[s.v]}(%ebp)")
                 is St -> emit("popl ${varOffsets[s.v]}(%ebp)")
                 is Unop -> when (s.kind) {
@@ -122,7 +125,6 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                     emit("ret")
                 }
                 Pop -> emit("popl %eax")
-                PreArgs -> TODO()
             }.exhaustive
         }
     }
@@ -134,6 +136,12 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
 
             for ((f, fCode) in source.functions) {
                 compileFunction(f, fCode)
+            }
+
+            emit(".section .rodata")
+
+            for ((i, l) in source.literalPool.withIndex()) {
+                emit(formatPooledStringId(i) + ": .string \"${String(l)}\"")
             }
         }
         return compilationEnvironment.result.joinToString("\n") + "\n"

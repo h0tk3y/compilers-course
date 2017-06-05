@@ -18,4 +18,4 @@ fun readTests(testRoot: File, takeFirstN: Int? = null): List<TestCaseMatchOutput
 }
 
 val fileTestCases = (listOf("expressions").flatMap { readTests(File("compiler-tests/$it")) } +
-                     readTests(File("compiler-tests/core"), 26)).register()
+                     readTests(File("compiler-tests/core"), 28)).register()

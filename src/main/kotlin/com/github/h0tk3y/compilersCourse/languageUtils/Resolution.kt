@@ -4,7 +4,7 @@ import com.github.h0tk3y.compilersCourse.language.*
 
 @Suppress("UNCHECKED_CAST")
 private class Resolution(val program: Program) {
-    val namedFunctions = (program.functionDeclarations + Intrinsic.declarations)
+    val namedFunctions = (program.functionDeclarations + Intrinsic.resolvable)
             .groupBy { it.name }
             .mapValues { (_, v) -> v.associateBy { it.parameters.size } }
 
@@ -31,6 +31,7 @@ private class Resolution(val program: Program) {
         is UnaryOperation -> expression.copy(resolveCallsIn(expression.operand))
         is BinaryOperation -> expression.copy(left = resolveCallsIn(expression.left),
                                               right = resolveCallsIn(expression.right))
+        is StringLiteral -> expression
     } as T
 
     private fun resolveCallsInStatement(s: Statement): Statement = when (s) {
