@@ -82,23 +82,14 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                             emit("cltd")
                             emit("idiv %ebx")
                         }
-                        And -> {
+                        And, Or -> {
                             emit("and %eax, %eax")
                             emit("setnz %al")
                             emit("and $1, %eax")
                             emit("and %ebx, %ebx")
                             emit("setnz %bl")
                             emit("and $1, %ebx")
-                            emit("and %eax, %ebx")
-                        }
-                        Or -> {
-                            emit("and %eax, %eax")
-                            emit("setnz %al")
-                            emit("and $1, %eax")
-                            emit("and %ebx, %ebx")
-                            emit("setnz %bl")
-                            emit("and $1, %ebx")
-                            emit("or %eax, %ebx")
+                            emit((if (s.kind == And) "and" else "or") + " %eax, %ebx")
                         }
                         Eq, Neq, Gt, Lt, Leq, Geq -> {
                             emit("subl %eax, %ebx")

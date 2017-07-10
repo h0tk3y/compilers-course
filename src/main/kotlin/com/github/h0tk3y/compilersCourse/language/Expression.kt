@@ -16,7 +16,7 @@ sealed class UnaryOperationKind
 object Not : UnaryOperationKind()
 
 fun UnaryOperationKind.semantics(x: Int) = when (this) {
-    Not -> if (x == 0) 1 else 0
+    Not -> (x == 0).asBit()
 }
 
 data class BinaryOperation(val left: Expression, val right: Expression, val kind: BinaryOperationKind) : Expression()
