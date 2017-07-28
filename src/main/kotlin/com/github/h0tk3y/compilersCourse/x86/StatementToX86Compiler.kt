@@ -4,7 +4,7 @@ import com.github.h0tk3y.compilersCourse.Compiler
 import com.github.h0tk3y.compilersCourse.language.Program
 import com.github.h0tk3y.compilersCourse.stack.StatementToStackCompiler
 
-class StatementToX86Compiler(targetPlatform: TargetPlatform) : Compiler<Program, String> {
+class StatementToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<Program, String> {
     val statementToStackCompiler = StatementToStackCompiler()
     val stackToX86Compiler = StackToX86Compiler(targetPlatform)
 

@@ -8,8 +8,6 @@ import com.github.h0tk3y.betterParse.parser.Parser
 import com.github.h0tk3y.compilersCourse.language.*
 import com.github.h0tk3y.compilersCourse.languageUtils.resolveCalls
 
-//region tokens
-
 object ProgramGrammar : Grammar<Program>() {
 
     private val LPAR by token("\\(")
@@ -86,18 +84,23 @@ object ProgramGrammar : Grammar<Program>() {
             DIV to Div,
             MOD to Rem)
 
-    private val const = NUMBER.map { Const(it.text.toInt()) } or CHARLIT.map { Const(it.text[1].toInt()) } or TRUE.map { Const(1) } or FALSE.map { Const(0) }
+    private val const =
+            NUMBER.map { Const(it.text.toInt()) } or
+            CHARLIT.map { Const(it.text[1].toInt()) } or
+            (TRUE asJust Const(1)) or
+            (FALSE asJust Const(0))
 
     private val funCall: Parser<FunctionCall> =
-            (ID and skip(LPAR) and separatedTerms(parser(this::expr), COMMA, acceptZero = true) and skip(RPAR))
-                    .map { (name, args) -> FunctionCall(UnresolvedFunction(name.text, args.size), args) }
+            (ID * -LPAR * separatedTerms(parser(this::expr), COMMA, acceptZero = true) * -RPAR).map { (name, args) ->
+                FunctionCall(UnresolvedFunction(name.text, args.size), args)
+            }
 
     private val variable = ID use { Variable(text) }
 
     private val stringLiteral = STRINGLIT use { StringLiteral(text.removeSurrounding("\"", "\"")) }
 
-    private val notTerm = (skip(NOT) and parser(this::term)) use { UnaryOperation(t1, Not) }
-    private val parenTerm = skip(LPAR) and parser(this::expr) and skip(RPAR) use { t1 }
+    private val notTerm = (-NOT * parser(this::term)) map { UnaryOperation(it, Not) }
+    private val parenTerm = -LPAR * parser(this::expr) * -RPAR
 
     private val term: Parser<Expression> = const or funCall or notTerm or variable or parenTerm or stringLiteral
 
@@ -112,7 +115,7 @@ object ProgramGrammar : Grammar<Program>() {
     }
 
     val comparisonOperator = EQU or NEQ or LT or GT or LEQ or GEQ
-    val comparisonOrMath: Parser<Expression> = (math and optional(comparisonOperator and math))
+    val comparisonOrMath: Parser<Expression> = (math * optional(comparisonOperator * math))
             .map { (left, tail) -> tail?.let { (op, r) -> BinaryOperation(left, r, signToKind[op.type]!!) } ?: left }
 
     private val andChain = leftAssociative(comparisonOrMath, AND, { l, _, r -> BinaryOperation(l, r, And) })
@@ -123,33 +126,34 @@ object ProgramGrammar : Grammar<Program>() {
 
     private val functionCallStatement: Parser<FunctionCallStatement> = funCall.map { FunctionCallStatement(it) }
 
-    private val assignmentStatement: Parser<Assign> = (variable and skip(ASGN) and expr).map { (v, e) -> Assign(v, e) }
+    private val assignmentStatement: Parser<Assign> = (variable * -ASGN * expr).map { (v, e) -> Assign(v, e) }
 
-private val ifStatement: Parser<If> =
-        (skip(IF) and expr and skip(THEN) and parser { statementsChain } and
-                zeroOrMore(skip(ELIF) and expr and skip(THEN) and parser { statementsChain }) and
-                optional(skip(ELSE) and parser { statementsChain }).map { it?.t1 ?: Skip } and skip(FI))
-                .map { (condExpr, thenBody, elifs, elseBody) ->
-                    val elses = elifs.foldRight(elseBody) { (elifC, elifB), el -> If(elifC, elifB, el) }
-                    If(condExpr, thenBody, elses)
-                }
+    private val ifStatement: Parser<If> =
+            (-IF * expr * -THEN *
+             parser { statementsChain } *
+             zeroOrMore(-ELIF * expr * -THEN * parser { statementsChain }) *
+             optional(-ELSE * parser { statementsChain }).map { it ?: Skip } *
+             -FI
+            ).map { (condExpr, thenBody, elifs, elseBody) ->
+                val elses = elifs.foldRight(elseBody) { (elifC, elifB), el -> If(elifC, elifB, el) }
+                If(condExpr, thenBody, elses)
+            }
 
-    private val forStatement: Parser<Chain> = skip(FOR) and parser { statement } and skip(COMMA) and
-            parser { expr } and skip(COMMA) and
-            parser { statement } and skip(DO) and
-            parser { statementsChain } and skip(OD) map {
-        val (init, condition, doAfter, body) = it
-        Chain(init, While(condition, Chain(body, doAfter)))
-    }
+    private val forStatement: Parser<Chain> =
+            (-FOR * parser { statement } * -COMMA * parser { expr } * -COMMA * parser { statement } * -DO *
+             parser { statementsChain } * -OD
+            ).map { (init, condition, doAfter, body) ->
+                Chain(init, While(condition, Chain(body, doAfter)))
+            }
 
-    private val whileStatement: Parser<While> = (skip(WHILE) and expr and skip(DO) and parser { statementsChain } and skip(OD))
+    private val whileStatement: Parser<While> = (-WHILE * expr * -DO * parser { statementsChain } * -OD)
             .map { (cond, body) -> While(cond, body) }
 
-    private val repeatStatement: Parser<Chain> = (skip(REPEAT) and parser { statementsChain } and skip(UNTIL) and expr).map { (body, cond) ->
+    private val repeatStatement: Parser<Chain> = (-REPEAT * parser { statementsChain } * -UNTIL * expr).map { (body, cond) ->
         Chain(body, While(UnaryOperation(cond, Not), body))
     }
 
-    private val returnStatement: Parser<Return> = skip(RETURN) and expr use { Return(t1) }
+    private val returnStatement: Parser<Return> = -RETURN * expr map { Return(it) }
 
     private val statement: Parser<Statement> = skipStatement or
             functionCallStatement or
@@ -161,12 +165,13 @@ private val ifStatement: Parser<If> =
             returnStatement
 
     private val functionDeclaration: Parser<FunctionDeclaration> =
-            (skip(FUN) and ID and skip(LPAR) and separatedTerms(ID, COMMA, acceptZero = true) and skip (RPAR) and skip(BEGIN) and parser { statementsChain } and skip(END))
+            (-FUN * ID * -LPAR * separatedTerms(ID, COMMA, acceptZero = true) * -RPAR * -BEGIN * parser { statementsChain } * -END)
                     .map { (name, paramNames, body) ->
                         FunctionDeclaration(name.text, paramNames.map { Variable(it.text) }, body)
                     }
 
-    private val statementsChain: Parser<Statement> = separated(statement, SEMI) and skip(optional(SEMI)) use { chainOf(*t1.terms.toTypedArray()) }
+    private val statementsChain: Parser<Statement> =
+            separatedTerms(statement, SEMI) * -optional(SEMI) map { chainOf(*it.toTypedArray()) }
 
     override val rootParser: Parser<Program> = oneOrMore(functionDeclaration or (statement and optional(SEMI) use { t1 })).map {
         val functions = it.filterIsInstance<FunctionDeclaration>()

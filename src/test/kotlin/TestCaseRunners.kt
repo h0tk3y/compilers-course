@@ -32,7 +32,12 @@ class StackRunner : TestCaseRunner() {
 }
 
 class X86Runner : TestCaseRunner() {
-    val compiler = StatementToX86Compiler(TargetPlatform.WIN)
+    val compiler = run {
+        val os = System.getProperty("os.name").let {
+            if (it.contains("win", true)) TargetPlatform.WIN else TargetPlatform.UNIX
+        }
+        StatementToX86Compiler(os)
+    }
 
     val asmCache = linkedMapOf<String, File>()
 
@@ -40,7 +45,12 @@ class X86Runner : TestCaseRunner() {
         val tmpDir = Files.createTempDirectory(null).toFile()
         val asmFile = File(tmpDir, "asm.s").apply { writeText(asm) }
         val exeFile = File(tmpDir, "output.exe")
-        val cmd = arrayOf("gcc", "-m32", File("runtime/intrinsics-win.o").absolutePath, asmFile.absolutePath,
+
+        val runtimeFile = if (compiler.targetPlatform == TargetPlatform.WIN)
+            File("runtime/intrinsics-win.o") else
+            File("runtime/intrinsics.o")
+
+        val cmd = arrayOf("gcc", "-m32", runtimeFile.absolutePath, asmFile.absolutePath,
                           "-o", exeFile.absolutePath)
         val exec = Runtime.getRuntime().exec(cmd)
         exec.waitFor()
@@ -67,6 +77,6 @@ class X86Runner : TestCaseRunner() {
         val output = compiler.compile(testCase.program)
         val exe = assemble(output)
         val out = runExe(exe, testCase.input.map { "$it" })
-        testCase.checkOutput(out.flatMap{ it.split(" ").map { it.toIntOrNull() } })
+        testCase.checkOutput(out.flatMap { it.split(" ").map { it.toIntOrNull() } })
     }
 }

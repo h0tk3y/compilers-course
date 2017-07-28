@@ -1,4 +1,5 @@
 
+import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
@@ -20,7 +21,7 @@ abstract class RunAllTestCases {
         stackRunner.runTestCase(testCase)
     }
 
-    @Test fun runWithX86() {
+    @Ignore @Test fun runWithX86() {
         x86Runner.runTestCase(testCase)
     }
 }
