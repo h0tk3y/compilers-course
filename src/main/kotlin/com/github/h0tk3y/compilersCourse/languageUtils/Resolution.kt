@@ -42,6 +42,10 @@ private class Resolution(val program: Program) {
         is Chain -> s.copy(resolveCallsInStatement(s.leftPart), resolveCallsInStatement(s.rightPart))
         is Return -> s.copy(resolveCallsIn(s.expression))
         is FunctionCallStatement -> s.copy(resolveCallsIn(s.functionCall))
+        is Try -> s.copy(resolveCallsInStatement(s.body),
+                         s.catchBranches.map { it.copy(body = resolveCallsInStatement(it.body)) },
+                         resolveCallsInStatement(s.finallyStatement))
+        is Throw -> s.copy(dataExpression = resolveCallsIn(s.dataExpression))
     }
 }
 

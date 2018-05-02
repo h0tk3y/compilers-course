@@ -31,23 +31,23 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
         emit("pushl %ebp")
         emit("movl %esp, %ebp")
 
-        val functionScope = collectVariables(source)
+        val functionScope = (collectVariables(source)).distinct()
         val locals = functionScope - functionDeclaration.parameters
         val localOffsets = locals.asSequence().zip(generateSequence(-4) { it - 4 }).toMap()
-        val stackOffset = (localOffsets.entries.lastOrNull()?.value?.let { it - 4 } ?: 0)
-        val paramOffsets = functionDeclaration.parameters.asSequence().zip(generateSequence(8) { it + 4 }).toMap()
-        emit("add \$$stackOffset, %esp")
+        val paramsBoundary = 8
+        val paramOffsets = functionDeclaration.parameters.asSequence().zip(generateSequence(paramsBoundary) { it + 4 }).toMap()
+        locals.forEach { emit("pushl $0") }
 
         val varOffsets = localOffsets + paramOffsets
 
-        for ((i, s) in (source + Ret0).withIndex()) {
-            emit("${functionDeclaration.name}_l$i: # $s")
-
+        fun compileInstruction(i: Int, s: StackStatement): Unit =
             when (s) {
                 Nop -> Unit
                 is Push -> emit("pushl \$${s.constant.value}")
                 is PushPooled -> emit("pushl \$" + formatPooledStringId(s.id))
-                is Ld -> emit("pushl ${varOffsets[s.v]}(%ebp)")
+                is Ld -> {
+                    emit("pushl ${varOffsets[s.v]}(%ebp)")
+                }
                 is St -> emit("popl ${varOffsets[s.v]}(%ebp)")
                 is Unop -> when (s.kind) {
                     Not -> {
@@ -108,15 +108,39 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                 is Call -> {
                     val fName = s.function.name
                     //todo save registers and change this offset
-                    val lastArgOffset = 0
+                    val lastArgOffset = 4
                     val offsetShift = 8
+                    emit("pushl $0")
                     for (j in s.function.parameters.indices) {
                         emit("pushl ${lastArgOffset + offsetShift * j}(%esp)")
                     }
                     emit("call ${formatFunctionName(fName)}")
                     //todo restore registers and change + 0
-                    emit("add \$${s.function.parameters.size * 4 * 2 + 0}, %esp")
+                    emit("add \$${s.function.parameters.size * 4}, %esp")
+                    if (s.function.canThrow) {
+                        emit("pushl %eax")
+                        emit("movl 4(%esp), %eax")
+                        emit("cmp $0, %eax")
+                        val labelWhenThrown = "whenThrown_${functionDeclaration.name}_$i"
+                        val labelAfterCall = "afterCall_${functionDeclaration.name}_$i"
+                        emit("jg $labelWhenThrown")
+                        emit("jmp $labelAfterCall")
+                        emit("$labelWhenThrown:")
+                        emit("pushl 4(%esp)")
+                        compileInstruction(i, St(thrownExceptionVariable))
+                        emit("$labelAfterCall:")
+                        emit("popl %eax")
+                    }
+                    emit("add \$${lastArgOffset + s.function.parameters.size * 4}, %esp")
                     emit("pushl %eax")
+                }
+                TransEx -> run {
+                    if (functionDeclaration.name != "main") {
+                        compileInstruction(i, Ld(currentExceptionVariable))
+                        val offsetBeyondParamters = 0
+                        val parentFrameThrownExOffset = paramOffsets.values.max()?.plus(4) ?: paramsBoundary + offsetBeyondParamters
+                        emit("popl $parentFrameThrownExOffset(%ebp)")
+                    }
                 }
                 Ret0, Ret1 -> {
                     emit(if (s == Ret1) "popl %eax" else "movl $0, %eax")
@@ -125,6 +149,10 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                 }
                 Pop -> emit("popl %eax")
             }.exhaustive
+
+        for ((i, s) in (source + Ret0).withIndex()) {
+            emit("${functionDeclaration.name}_l$i: # $s")
+            compileInstruction(i, s)
         }
     }
 

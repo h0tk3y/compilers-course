@@ -14,7 +14,7 @@ data class UnresolvedFunction(override val name: String, val dimensions: Int) : 
     override val body get() = throw IllegalStateException("Getting body of an unresolved function $this")
 }
 
-sealed class Intrinsic(name: String, parameters: List<Variable>) : FunctionDeclaration(name, parameters, Skip) {
+sealed class Intrinsic(name: String, parameters: List<Variable>, val throws: Boolean = false) : FunctionDeclaration(name, parameters, Skip) {
     override val body: Statement get() = throw IllegalStateException("Getting body of an unresolved function $this")
 
     object READ : Intrinsic("read", emptyList())

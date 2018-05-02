@@ -9,14 +9,17 @@ import com.github.h0tk3y.compilersCourse.language.semantics
 
 data class StackMachineState(val input: List<Int>,
                              val output: List<Int?>,
-                             val state: (Variable) -> Int,
+                             val state: Map<Variable, Int>,
                              val stack: List<Int>,
                              val instructionPointer: Int,
+                             val thrownExceptionId: Int,
                              val stringPool: List<CharArray>)
 
 class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, List<Int>> {
-    override fun initialState(input: List<Int>) =
-            StackMachineState(input, emptyList(), { throw NoSuchElementException() }, emptyList(), 0, emptyList())
+    override fun initialState(input: List<Int>): StackMachineState {
+        val emptyState = emptyMap<Variable, Int>().andMap(currentExceptionVariable to 0)
+        return StackMachineState(input, emptyList(), emptyState, emptyList(), 0, 0, emptyList())
+    }
 
     private fun StackMachineState.pop(n: Int) = copy(stack = stack.dropLast(n))
     private fun StackMachineState.push(c: Int) = copy(stack = stack + c)
@@ -29,7 +32,7 @@ class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, Lis
             Nop -> this
             is Push -> copy(stack = stack + t.constant.value)
             is PushPooled -> copy(stack = stack + t.id)
-            is Ld -> copy(stack = stack + state(t.v))
+            is Ld -> copy(stack = stack + state[t.v]!!)
             is St -> copy(stack = stack.dropLast(1), state = state.andMap(t.v to stack.last()))
             is Unop ->
                 copy(stack = stack.dropLast(1) + t.kind.semantics(stack.last()))
@@ -45,58 +48,68 @@ class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, Lis
                                     t.nextInstruction - 1)
             is Call -> t.function.let { f ->
                 when (f) {
-                    is Intrinsic -> when (f) {
-                        Intrinsic.READ -> copy(input = input.drop(1), stack = stack + input.first(), output = output + null as Int?)
-                        Intrinsic.WRITE -> copy(output = output + stack.last(), stack = stack.dropLast(1))
-                        Intrinsic.STRMAKE -> {
-                            val (c, n) = stack.reversed()
-                            pop(2).addNewStr(CharArray(n) { c.toChar() })
-                        }
-                        Intrinsic.STRCMP -> {
-                            val (s2, s1) = stack.reversed()
-                            val cmpResult = String(stringPool[s1]).compareTo(String(stringPool[s2]))
-                            pop(2).push(cmpResult)
-                        }
-                        Intrinsic.STRGET -> {
-                            val (i, str) = stack.reversed()
-                            val result = stringPool[str][i].toInt()
-                            pop(2).push(result)
-                        }
-                        Intrinsic.STRDUP -> {
-                            val str = stack.last()
-                            pop(1).addNewStr(stringPool[str].copyOf())
-                        }
-                        Intrinsic.STRSET -> {
-                            val (c, i, str) = stack.reversed()
-                            stringPool[str][i] = c.toChar()
-                            pop(3).push(0)
-                        }
-                        Intrinsic.STRCAT -> {
-                            val (s2, s1) = stack.reversed()
-                            pop(2).addNewStr(stringPool[s1] + stringPool[s2])
-                        }
-                        Intrinsic.STRSUB -> {
-                            val (n, from, str) = stack.reversed()
-                            pop(3).addNewStr(stringPool[str].copyOfRange(from, from + n))
-                        }
-                        Intrinsic.STRLEN -> {
-                            val str = stack.last()
-                            pop(1).push(stringPool[str].size)
-                        }
-                    }.exhaustive
-                    else -> {
+                    !is Intrinsic -> {
                         val internalMachine = StackMachineState(
-                                input, output,
-                                f.parameters.zip(stack.takeLast(f.parameters.size)).toMap()::getValue,
-                                emptyList(), 0, stringPool)
+                            input, output,
+                            f.parameters.zip(stack.takeLast(f.parameters.size)).toMap()
+                                .andMap(currentExceptionVariable to 0),
+                            emptyList(), 0, 0, stringPool)
                         val result = join(internalMachine, StackProgram(p.functions, f, p.literalPool))
                         val returnValue = result.stack.last()
+                        val thrownException = result.thrownExceptionId
                         copy(result.input, result.output,
                              stack = stack.dropLast(f.parameters.size) + returnValue,
+                             state = state.andMap(thrownExceptionVariable to thrownException),
                              stringPool = result.stringPool)
+                    }
+                    else -> {
+                        copy(state = state.andMap(thrownExceptionVariable to 0)).run {
+                            when (f) {
+                                Intrinsic.READ -> copy(input = input.drop(1), stack = stack + input.first(), output = output + null as Int?)
+                                Intrinsic.WRITE -> copy(output = output + stack.last(), stack = stack.dropLast(1).plus(0))
+                                Intrinsic.STRMAKE -> {
+                                    val (c, n) = stack.reversed()
+                                    pop(2).addNewStr(CharArray(n) { c.toChar() })
+                                }
+                                Intrinsic.STRCMP -> {
+                                    val (s2, s1) = stack.reversed()
+                                    val cmpResult = String(stringPool[s1]).compareTo(String(stringPool[s2]))
+                                    pop(2).push(cmpResult)
+                                }
+                                Intrinsic.STRGET -> {
+                                    val (i, str) = stack.reversed()
+                                    val result = stringPool[str][i].toInt()
+                                    pop(2).push(result)
+                                }
+                                Intrinsic.STRDUP -> {
+                                    val str = stack.last()
+                                    pop(1).addNewStr(stringPool[str].copyOf())
+                                }
+                                Intrinsic.STRSET -> {
+                                    val (c, i, str) = stack.reversed()
+                                    stringPool[str][i] = c.toChar()
+                                    pop(3).push(0)
+                                }
+                                Intrinsic.STRCAT -> {
+                                    val (s2, s1) = stack.reversed()
+                                    pop(2).addNewStr(stringPool[s1] + stringPool[s2])
+                                }
+                                Intrinsic.STRSUB -> {
+                                    val (n, from, str) = stack.reversed()
+                                    pop(3).addNewStr(stringPool[str].copyOfRange(from, from + n))
+                                }
+                                Intrinsic.STRLEN -> {
+                                    val str = stack.last()
+                                    pop(1).push(stringPool[str].size)
+                                }
+                            }
+                        }
                     }
                 }.exhaustive
             }
+            TransEx -> if (state[currentExceptionVariable] == returnNormallyFakeExceptionId)
+                this else
+                copy (thrownExceptionId = state[currentExceptionVariable]!!)
             Ret1 -> copy(instructionPointer = code.lastIndex)
             Ret0 -> copy(instructionPointer = code.lastIndex, stack = stack + 0)
             Pop -> copy(stack = stack.dropLast(1))
@@ -108,5 +121,4 @@ class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, Lis
             generateSequence(if (s.stringPool.isEmpty()) s.copy(stringPool = p.literalPool) else s) {
                 if (it.instructionPointer !in p.code.indices) null else step(it, p)
             }.last()
-
 }

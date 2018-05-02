@@ -17,8 +17,8 @@ fun readTests(testRoot: File, takeFirstN: Int? = null): List<TestCaseMatchOutput
     }
 }
 
-val coreTestsNoArrays = (listOf("core").flatMap { readTests(File("compiler-tests/$it"), 28) }).register()
+val coreTestsNoArrays = (listOf("core").flatMap { readTests(File("compiler-tests/$it"), 28) }).registerSimple()
 
-val expressionTests = (listOf("expressions").flatMap { readTests(File("compiler-tests/$it")) }).register()
+val expressionTests = (listOf("expressions").flatMap { readTests(File("compiler-tests/$it")) }).registerSimple()
 
-val deepExpressionTests = (listOf("deep-expressions").flatMap { readTests(File("compiler-tests/$it")) }).register()
+val deepExpressionTests = (listOf("deep-expressions").flatMap { readTests(File("compiler-tests/$it")) }).registerSimple()

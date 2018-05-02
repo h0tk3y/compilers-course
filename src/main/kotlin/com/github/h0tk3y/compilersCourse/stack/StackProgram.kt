@@ -15,12 +15,20 @@ data class Binop(val kind: BinaryOperationKind) : StackStatement()
 data class Jmp(val nextInstruction: Int) : StackStatement()
 data class Jz(val nextInstruction: Int) : StackStatement()
 data class Call(val function: FunctionDeclaration): StackStatement()
+object TransEx : StackStatement()
 object Ret1 : StackStatement()
 object Ret0 : StackStatement()
 
 data class StackProgram(val functions: Map<FunctionDeclaration, List<StackStatement>>,
                         val entryPoint: FunctionDeclaration,
                         val literalPool: List<CharArray>)
+
+val currentExceptionVariable = Variable("###current-exception")
+val thrownExceptionVariable = Variable("###thrown-exception")
+val exceptionDataVariable = Variable("###exception-data")
+
+val returnNormallyFakeException = ExceptionType("ReturnNormally")
+val returnNormallyFakeExceptionId = -1
 
 val StackProgram.code get() =
     functions[entryPoint]!!

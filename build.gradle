@@ -19,8 +19,8 @@ repositories {
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jre8"
     compile "org.jetbrains.kotlin:kotlin-reflect"
-    compile 'org.ow2.asm:asm:6.0_ALPHA'
-    compile 'com.github.h0tk3y.betterParse:better-parse:0.3.3'
+    compile 'org.ow2.asm:asm:6.1.1'
+    compile 'com.github.h0tk3y.betterParse:better-parse:0.3.4'
     testCompile "junit:junit:4.12"
 }
 

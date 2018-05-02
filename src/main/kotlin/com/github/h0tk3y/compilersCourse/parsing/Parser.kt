@@ -47,6 +47,13 @@ object ProgramGrammar : Grammar<Program>() {
     private val DO by token("do\\b")
     private val OD by token("od\\b")
 
+    private val TRY by token("try\\b")
+    private val CATCH by token("catch\\b")
+    private val FINALLY by token("finally\\b")
+    private val YRT by token("yrt\\b")
+
+    private val THROW by token("throw\\b")
+
     private val SKIP by token("skip\\b")
 
     private val REPEAT by token("repeat\\b")
@@ -64,7 +71,7 @@ object ProgramGrammar : Grammar<Program>() {
     private val NUMBER by token("\\d+")
     private val CHARLIT by token("'.'")
     private val STRINGLIT by token("\".*?\"")
-    private val ID by token("\\w+")
+    private val ID by (token("[a-zA-Z]\\w*"))
 
     private val WS by token("\\s+", ignore = true)
     private val NEWLINE by token("[\r\n]+", ignore = true)
@@ -85,7 +92,7 @@ object ProgramGrammar : Grammar<Program>() {
             MOD to Rem)
 
     private val const =
-            NUMBER.map { Const(it.text.toInt()) } or
+            (optional(MINUS) map { if (it == null) 1 else -1 }) * NUMBER map { (s, it) -> Const(s * it.text.toInt()) } or
             CHARLIT.map { Const(it.text[1].toInt()) } or
             (TRUE asJust Const(1)) or
             (FALSE asJust Const(0))
@@ -139,6 +146,20 @@ object ProgramGrammar : Grammar<Program>() {
                 If(condExpr, thenBody, elses)
             }
 
+    private val tryStatement: Parser<Try> =
+            (-TRY * parser { statementsChain } *
+             zeroOrMore(-CATCH * -LPAR * ID * ID * -RPAR * parser { statementsChain }).use { map { (exType, exData, block) ->
+                 CatchBranch(ExceptionType(exType.text), Variable(exData.text), block) }
+             } *
+             optional(-FINALLY * parser { statementsChain }) *
+             -YRT
+            ).map { (body, catch, finally) ->
+                Try(body, catch, finally ?: Skip)
+            }
+
+    private val throwStatement: Parser<Throw> =
+            -THROW * -LPAR * ID * parser { expr } * -RPAR map { (exType, dataExpr) -> Throw(ExceptionType(exType.text), dataExpr) }
+
     private val forStatement: Parser<Chain> =
             (-FOR * parser { statement } * -COMMA * parser { expr } * -COMMA * parser { statement } * -DO *
              parser { statementsChain } * -OD
@@ -162,7 +183,9 @@ object ProgramGrammar : Grammar<Program>() {
             whileStatement or
             forStatement or
             repeatStatement or
-            returnStatement
+            returnStatement or
+            tryStatement or
+            throwStatement
 
     private val functionDeclaration: Parser<FunctionDeclaration> =
             (-FUN * ID * -LPAR * separatedTerms(ID, COMMA, acceptZero = true) * -RPAR * -BEGIN * parser { statementsChain } * -END)
@@ -171,7 +194,7 @@ object ProgramGrammar : Grammar<Program>() {
                     }
 
     private val statementsChain: Parser<Statement> =
-            separatedTerms(statement, SEMI) * -optional(SEMI) map { chainOf(*it.toTypedArray()) }
+            separatedTerms(statement, optional(SEMI)) * -optional(SEMI) map { chainOf(*it.toTypedArray()) }
 
     override val rootParser: Parser<Program> = oneOrMore(functionDeclaration or (statement and optional(SEMI) use { t1 })).map {
         val functions = it.filterIsInstance<FunctionDeclaration>()

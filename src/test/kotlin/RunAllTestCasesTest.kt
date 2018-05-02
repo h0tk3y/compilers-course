@@ -1,5 +1,4 @@
 
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
@@ -13,16 +12,32 @@ abstract class RunAllTestCases {
     val stackRunner = StackRunner()
     val x86Runner = X86Runner()
 
-    @Test fun runWithInterpreter() {
+    @Test open fun runWithInterpreter() {
         interpreterRunner.runTestCase(testCase)
     }
 
-    @Test fun runWithStack() {
+    @Test open fun runWithStack() {
         stackRunner.runTestCase(testCase)
     }
 
-    @Ignore @Test fun runWithX86() {
+    @Test open fun runWithX86() {
         x86Runner.runTestCase(testCase)
+    }
+}
+
+@RunWith(Parameterized::class)
+class RunSimpleTestCases : RunAllTestCases() {
+    companion object {
+        @Parameterized.Parameters(name = "test case: {0}")
+        @JvmStatic fun testCases() = simpleTestCases
+    }
+}
+
+@RunWith(Parameterized::class)
+class RunExceptionTestCases : RunAllTestCases() {
+    companion object {
+        @Parameterized.Parameters(name = "test case: {0}")
+        @JvmStatic fun testCases() = exceptionTestCases
     }
 }
 

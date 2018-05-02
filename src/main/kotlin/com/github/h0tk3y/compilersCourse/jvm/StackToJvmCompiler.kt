@@ -143,6 +143,7 @@ class StackToJvmCompiler : Compiler<StackProgram, ByteArray> {
                     Ret1 -> TODO()
                     Pop -> visitInsn(POP)
                     is PushPooled -> TODO()
+                    TransEx -> TODO()
                 }.exhaustive
             }
 
