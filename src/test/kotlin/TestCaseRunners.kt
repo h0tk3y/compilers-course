@@ -31,12 +31,16 @@ class StackRunner : TestCaseRunner() {
     }
 }
 
+fun determinePlatform(): TargetPlatform {
+    val os = System.getProperty("os.name").let {
+        if (it.contains("win", true)) TargetPlatform.WIN else TargetPlatform.UNIX
+    }
+    return os
+}
+
 class X86Runner : TestCaseRunner() {
     val compiler = run {
-        val os = System.getProperty("os.name").let {
-            if (it.contains("win", true)) TargetPlatform.WIN else TargetPlatform.UNIX
-        }
-        StatementToX86Compiler(os)
+        StatementToX86Compiler(determinePlatform())
     }
 
     val asmCache = linkedMapOf<String, File>()

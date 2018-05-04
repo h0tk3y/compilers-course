@@ -16,6 +16,9 @@ class StatementToStackCompiler : Compiler<Program, StackProgram> {
     class CompilationEnvironment(val exceptionIds: Map<ExceptionType, Int>) {
         val stringPool = mutableListOf<CharArray>()
 
+        val unknownStackContent = listOf<StackStatement>()
+        val stackContent = mutableMapOf<Int, List<StackStatement>>(0 to emptyList())
+
         fun saveStringToPool(stringLiteral: StringLiteral): Int {
             val charArray = stringLiteral.value.toCharArray()
             return stringPool.withIndex().firstOrNull { (_, v) -> v.contentEquals(charArray) }?.index ?: run {
@@ -47,6 +50,9 @@ class StatementToStackCompiler : Compiler<Program, StackProgram> {
     }
 
     private fun CompilationEnvironment.compileFunction(source: Statement): List<StackStatement> {
+        stackContent.clear()
+        stackContent[0] = emptyList()
+
         check(exitHandlersStack.isEmpty())
         val returnHandler = CompilationEnvironment.ExitHandler(
             hasExceptionTypes = listOf(ExceptionType("###all-uncaught")),
@@ -57,14 +63,59 @@ class StatementToStackCompiler : Compiler<Program, StackProgram> {
         val exprsDebugStack = Stack<Expression>()
         val program = arrayListOf<Triple<Any, Statement?, Expression?>>()
 
-        fun emit(stackStatement: StackStatement) {
-            val entry = Triple(stackStatement, statementsDebugStack.lastOrNull(), exprsDebugStack.lastOrNull())
-            program.add(entry)
+        fun mergeStackContents(instructionNumber: Int, content: List<StackStatement>) {
+            stackContent.compute(instructionNumber) { _, existing ->
+                if (existing != null && existing !== unknownStackContent) {
+                    check(existing.size == content.size) {
+                        "Stacks do not match:\n$content\n$existing"
+                    }
+                }
+                content
+            }
+        }
+
+        fun emit(stackStatement: StackStatement, atIndex: Int = program.size) {
+            val currentStack = stackContent[atIndex]!!
+            val modifiedStack = when (stackStatement) {
+                is Ld, is Push, is PushPooled -> currentStack + stackStatement
+                is St, is Jz, Ret1, Pop -> currentStack.dropLast(1)
+                is Call -> currentStack.dropLast(stackStatement.function.parameters.size) + stackStatement
+                is Unop -> currentStack.dropLast(1) + stackStatement
+                is Binop -> currentStack.dropLast(2) + stackStatement
+                is Jmp, TransEx, Ret0, Nop -> currentStack
+                TransEx -> currentStack
+            }
+            when (stackStatement) {
+                is Jmp -> {
+                    mergeStackContents(stackStatement.nextInstruction, modifiedStack)
+                    stackContent[atIndex + 1] = unknownStackContent
+                }
+                is Jz -> {
+                    mergeStackContents(stackStatement.nextInstruction, modifiedStack)
+                    mergeStackContents(atIndex + 1, modifiedStack)
+                }
+                else -> mergeStackContents(atIndex + 1, modifiedStack)
+            }
+            if (atIndex == program.size) {
+                val entry = Triple(stackStatement, statementsDebugStack.lastOrNull(), exprsDebugStack.lastOrNull())
+                program.add(entry)
+            } else {
+                val (insn, st, ex) = program[atIndex]
+                check(insn is JumpPlaceholder)
+                program[atIndex] = Triple(stackStatement, st, ex)
+            }
         }
 
         fun nextInsn() = program.size
 
         fun emitJumpPlaceholder(fillFunction: (Int) -> StackStatement): JumpPlaceholder {
+            val currentStack = stackContent[program.size]!!
+            stackContent[program.size + 1] = when (fillFunction) {
+                ::Jmp ->  currentStack
+                ::Jz -> currentStack.dropLast(1)
+                else -> throw UnsupportedOperationException()
+            }
+
             val jumpPlaceholder = JumpPlaceholder(program.lastIndex + 1, fillFunction, RuntimeException())
             val entry = Triple(jumpPlaceholder, statementsDebugStack.lastOrNull(), exprsDebugStack.lastOrNull())
             program.add(entry)
@@ -74,7 +125,7 @@ class StatementToStackCompiler : Compiler<Program, StackProgram> {
         fun fillJumpPlaceholder(placeholder: JumpPlaceholder, jumpTo: Int) {
             val placeholderEntry = program[placeholder.position]
             check(placeholderEntry.first === placeholder)
-            program[placeholder.position] = placeholderEntry.copy(first = placeholder.fillFunction(jumpTo))
+            emit(placeholder.fillFunction(jumpTo), placeholder.position)
         }
 
         fun emitThrownExceptionHandling() {
@@ -87,6 +138,10 @@ class StatementToStackCompiler : Compiler<Program, StackProgram> {
             emit(St(currentExceptionVariable))
             emit(Push(Const(0)))
             emit(St(thrownExceptionVariable))
+            val stackRemainingItemsCount = stackContent[program.size]!!.size
+            repeat(stackRemainingItemsCount) { // Remove the expression parts from the stack
+                emit(Pop)
+            }
             val jmpIfThrown = emitJumpPlaceholder(::Jmp)
             exitHandlerWhenThrown().throwPlaceholders.add(jmpIfThrown)
             fillJumpPlaceholder(jzWhenNotThrown, nextInsn())
