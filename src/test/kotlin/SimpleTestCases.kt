@@ -44,10 +44,23 @@ val simpleParsedWithFun = ParsedTestCaseMatchOutput("simpleParsedWithFun", """
     """.trimIndent(), listOf(123, 456), listOf(null, null, 123 + 456 * 456)).registerSimple()
 
 val returnInsideFun = ParsedTestCaseMatchOutput("returnInsideFun", """
-    fun someFun(a, b) begin
+    fun someFun(a, b, c) begin
+        write(a)
+        write(b)
+        write(c)
         return a;
-        return b
+        return b;
+        return c;
     end
 
-    write(someFun(1, 2))
-    """.trimIndent(), listOf(), listOf(1)).registerSimple()
+    write(someFun(123, 456, 789))
+    """.trimIndent(), listOf(), listOf(123, 456, 789, 123)).registerSimple()
+
+val funCallOnLongStack = ParsedTestCaseMatchOutput("funCallOnLongStack", """
+    fun someFun(a, b, c) begin
+        return a + b * c
+    end
+
+    x := 1 + 2 + 3 - 4 + 5 * 6 / 7 % 8 + someFun(1, 2, 3)
+    write(x)
+    """.trimIndent(), listOf(), listOf(1 + 2 + 3 - 4 + 5 * 6 / 7 % 8 + (1 + 2 * 3))).registerSimple()
