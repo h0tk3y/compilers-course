@@ -22,6 +22,8 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
         val result = mutableListOf<String>()
         fun emit(s: String) = result.add(s).run { }
 
+        fun emitPushType(type: Type) = emitPush("$${type.flag}")
+
         fun emitPush(src: String): String {
             val alreadyInUnallocatedRegister =
                 SymbolicStackLocation.values().find { it.isRegister && it.name == src.removePrefix("%") }
@@ -57,6 +59,11 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
             }
         }
 
+        fun dropTypePopToReg1(toRegWhenNotSuitable: String = "%eax", requires8BitOps: Boolean = false): String {
+            val reg = popToReg1(toRegWhenNotSuitable, requires8BitOps)
+            return popToReg1(reg, requires8BitOps)
+        }
+
         fun popToReg1(toRegWhenNotSuitable: String = "%eax", requires8BitOps: Boolean = false): String {
             val currentLocation = symbolicStack.peek()
             return if (currentLocation == programStack || requires8BitOps && !currentLocation.supports8Bits) {
@@ -68,7 +75,8 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
             }
         }
 
-        fun popTo2Regs(require8BitOps: Boolean) = popToReg1("%ebx", require8BitOps) to popToReg1("%eax", require8BitOps)
+        fun dropTypesPopToTwoRegs(require8BitOps: Boolean) =
+            dropTypePopToReg1("%ebx", require8BitOps) to dropTypePopToReg1("%eax", require8BitOps)
 
         private fun allocOnSymStack(): SymbolicStackLocation {
             val nextItem = SymbolicStackLocation.values().firstOrNull { it !in symbolicStack } ?: programStack
@@ -101,6 +109,10 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
         else -> error("Unknown general purpose register")
     }
 
+    enum class Type(val flag: Int) {
+        SCALAR(0), SCALAR_ARRAY(1), BOXED_ARRAY(2)
+    }
+
     private fun CompilationEnvironment.compileFunction(functionDeclaration: FunctionDeclaration, source: List<StackStatement>) {
         functionDeclaration.name.let { fName ->
             emit(".globl ${formatFunctionName(fName)}")
@@ -114,12 +126,29 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
 
         val functionScope = (collectVariables(source)).distinct()
         val locals = functionScope - functionDeclaration.parameters
-        val localOffsets = locals.asSequence().zip(generateSequence(-4) { it - 4 }).toMap()
-        val paramsBoundary = 2 * 4 // 2 words for the previous frame's EBP and the return address
-        val paramOffsets = functionDeclaration.parameters.asSequence().zip(generateSequence(paramsBoundary) { it + 4 }).toMap()
-        locals.forEach { emit("pushl $0") }
 
-        val varOffsets = localOffsets + paramOffsets
+        val localOffsets = locals.asSequence().zip(generateSequence(-4) { it - 8 }).toMap()
+        val localTypeOffsets = locals.asSequence().zip(generateSequence(-8) { it - 8 }).toMap()
+
+        val paramsBoundary = 2 * 4 // 2 words for the previous frame's EBP and the return address
+
+        val paramOffsets = functionDeclaration.parameters.asSequence().zip(generateSequence(paramsBoundary + 4) { it + 8 }).toMap()
+        val paramTypeOffsets = functionDeclaration.parameters.asSequence().zip(generateSequence(paramsBoundary) { it + 8 }).toMap()
+
+        functionDeclaration.parameters.forEach {
+            emit("# value offset for param $it: ${paramOffsets[it]}")
+            emit("# type offset for param $it: ${paramTypeOffsets[it]}")
+        }
+
+        locals.forEach {
+            emit("pushl $0 # value offset for $it: ${localOffsets[it]}")
+            emit("pushl $0 # type offset for $it: ${localTypeOffsets[it]}")
+        }
+
+        val valueOffsets = localOffsets + paramOffsets
+        val typeOffsets = localTypeOffsets + paramTypeOffsets
+
+        val lastLocalEbpOffset = (localOffsets.values + localTypeOffsets.values).min() ?: 0
 
         var insnCanContinue: Boolean
 
@@ -132,16 +161,29 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
 
             when (s) {
                 Nop -> Unit
-                is Push -> emitPush("\$${s.constant.value}")
-                is PushPooled -> emitPush("\$" + formatPooledStringId(s.id))
-                is Ld -> emitPush("${varOffsets[s.v]}(%ebp)")
-                is St -> emitPop("${varOffsets[s.v]}(%ebp)")
+                is Push -> {
+                    emitPush("\$${s.constant.value}")
+                    emitPushType(Type.SCALAR)
+                }
+                is PushPooled -> {
+                    emitPush("\$" + formatPooledStringId(s.id))
+                    emitPushType(Type.SCALAR)
+                }
+                is Ld -> {
+                    emitPush("${valueOffsets[s.v]}(%ebp)")
+                    emitPush("${typeOffsets[s.v]}(%ebp)")
+                }
+                is St -> {
+                    emitPop("${typeOffsets[s.v]}(%ebp)")
+                    emitPop("${valueOffsets[s.v]}(%ebp)")
+                }
                 is Unop -> when (s.kind) {
                     Not -> {
-                        val reg = popToReg1()
+                        val reg = dropTypePopToReg1()
                         emit("cmp $0, $reg")
                         emit("jnz ${functionDeclaration.name}_l${i}_nz")
                         val targetLoc = emitPush("$1")
+                        emitPushType(Type.SCALAR)
                         emit("jmp ${functionDeclaration.name}_l${i}_after")
                         emit("${functionDeclaration.name}_l${i}_nz:")
                         emit("movl $0, $targetLoc")
@@ -149,7 +191,7 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                     }
                 }
                 is Binop -> {
-                    val (opB, opA) = popTo2Regs(opRequires8Bits(s.kind))
+                    val (opB, opA) = dropTypesPopToTwoRegs(opRequires8Bits(s.kind))
                     var resultRegister = opB
 
                     when (s.kind) {
@@ -194,6 +236,7 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                         }
                     }
                     emitPush(resultRegister)
+                    emitPushType(Type.SCALAR)
                 }
                 is Jmp -> {
                     symbolicStackAtInsn[s.nextInstruction] = Stack<SymbolicStackLocation>().apply { addAll(symbolicStack) }
@@ -201,15 +244,15 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                     emit("jmp ${functionDeclaration.name}_l${s.nextInstruction}")
                 }
                 is Jz -> {
-                    val op = popToReg1()
+                    val op = dropTypePopToReg1()
                     symbolicStackAtInsn[s.nextInstruction] = Stack<SymbolicStackLocation>().apply { addAll(symbolicStack) }
                     emit("cmp $0, $op")
                     emit("jz ${functionDeclaration.name}_l${s.nextInstruction}")
                 }
                 is Call -> {
-                    val fName = s.function.name
+                    val fName = functionBackEndName(s.function)
                     val existingProgramStackItemsCount = symbolicStack.filter { it == programStack }.count()
-                    val lastTakenEbpOffset = existingProgramStackItemsCount * 4 + (localOffsets.values.min() ?: 0).absoluteValue
+                    val lastTakenEbpOffset = existingProgramStackItemsCount * 4 + lastLocalEbpOffset.absoluteValue
                     val regItemsCount = symbolicStack.size - existingProgramStackItemsCount
                     val programStackEbpOffsetBySymbolicStackIndex = symbolicStack.withIndex().associate { (index, stackItem) ->
                         val offset =
@@ -217,22 +260,31 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                                 emit("pushl %${stackItem.name}")
                                 -lastTakenEbpOffset - 4 * (1 + index)
                             } else {
-                                (1 + index - regItemsCount) * -4
+                                -lastTakenEbpOffset - 4 * (1 + index - regItemsCount - existingProgramStackItemsCount)
                             }
                         index to offset
                     }
+
                     val specialItemsForCalleeOnStack = if (s.function.canThrow) {
-                        emit("pushl $0")
+                        emit("pushl $0") // thrown exception id
                         1
                     } else 0
-                    val paramStackIndices = symbolicStack.indices.toList().takeLast(s.function.parameters.size).reversed()
+
+                    val nParamStackItems = s.function.parameters.size * 2 // value and type for each parameter
+                    val paramStackIndices = symbolicStack.indices.toList().takeLast(nParamStackItems)
+                        .reversed()
+                        .chunked(2) { it.reversed() }
+                        .flatten()
+
                     for (paramStackIndex in paramStackIndices) {
                         emit("pushl ${programStackEbpOffsetBySymbolicStackIndex[paramStackIndex]}(%ebp)")
                     }
                     emit("call ${formatFunctionName(fName)}")
-                    (s.function.parameters.size * 4).let { argBytesOnStack ->
+
+                    (nParamStackItems * 4).let { argBytesOnStack ->
                         if (argBytesOnStack > 0) emit("add \$${argBytesOnStack}, %esp")
                     }
+
                     if (s.function.canThrow) {
                         emit("pushl %eax")
                         emit("movl 4(%esp), %eax")
@@ -242,40 +294,53 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                         emit("jg $labelWhenThrown")
                         emit("jmp $labelAfterCall")
                         emit("$labelWhenThrown:")
+
                         emitPush("4(%esp)")
+                        emitPushType(Type.SCALAR)
                         compileInstruction(i, St(thrownExceptionVariable))
+
                         emit("$labelAfterCall:")
                         emit("popl %eax")
                     }
+
                     (specialItemsForCalleeOnStack * 4).let { specialItemBytesOnStack ->
                         if (specialItemBytesOnStack > 0)
                             emit("add \$${specialItemBytesOnStack}, %esp")
                     }
-                    for (loc in symbolicStack.filter { it.isRegister }.reversed()) {
+
+                    for (loc in symbolicStack.filter { it.isRegister }.reversed()) { // restore symstack registers
                         emit("popl %${loc.name}")
                     }
                     s.function.parameters.forEach {
+                        emitPop("%ebx") // TODO don't overwrite the EBX register as it will store the returned type
                         emitPop("%ebx")
                     }
                     emitPush("%eax")
+                    emitPushType(Type.SCALAR) // TODO push actual type of the value returned from the function
                 }
                 TransEx -> {
                     if (functionDeclaration.name != "main") {
-                        emitPush("${varOffsets[currentExceptionVariable]}(%ebp)")
+                        emitPush("${valueOffsets[currentExceptionVariable]}(%ebp)")
                         val offsetBeyondParamters = 0
                         val parentFrameThrownExOffset = paramOffsets.values.max()?.plus(4) ?: paramsBoundary + offsetBeyondParamters
                         emitPop("$parentFrameThrownExOffset(%ebp)")
                     }
                 }
                 Ret0, Ret1 -> {
-                    if (s == Ret1)
+                    if (s == Ret1) {
+                        emitPop("%ebx")
                         emitPop("%eax")
-                    else
+                    } else {
+                        emit("movl \$${Type.SCALAR.flag}, %ebx")
                         emit("movl $0, %eax")
+                    }
                     emit("leave")
                     emit("ret")
                 }
-                Pop -> emitPop("%eax")
+                Pop -> {
+                    emitPop("%ebx")
+                    emitPop("%eax")
+                }
             }
 
             if (i + 1 in symbolicStackAtInsn && insnCanContinue) {
@@ -316,3 +381,14 @@ private fun opRequires8Bits(binaryOperationKind: BinaryOperationKind) = when (bi
     And, Or, Eq, Neq, Gt, Lt, Leq, Geq -> true
     else -> false
 }
+
+private fun functionBackEndName(functionDeclaration: FunctionDeclaration): String =
+    if (functionDeclaration is Intrinsic) {
+        when (functionDeclaration) {
+            Intrinsic.STRLEN -> "strlen_2"
+            Intrinsic.STRDUP -> "strdup_2"
+            Intrinsic.STRCMP -> "strcmp_4"
+            Intrinsic.STRCAT -> "strcat_4"
+            else -> functionDeclaration.name
+        }
+    } else functionDeclaration.name

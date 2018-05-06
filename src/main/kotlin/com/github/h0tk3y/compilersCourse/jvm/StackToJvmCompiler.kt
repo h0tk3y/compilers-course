@@ -136,6 +136,10 @@ class StackToJvmCompiler : Compiler<StackProgram, ByteArray> {
                             Intrinsic.STRCAT -> TODO()
                             Intrinsic.STRSUB -> TODO()
                             Intrinsic.STRLEN -> TODO()
+                            Intrinsic.ARRMAKE -> TODO()
+                            Intrinsic.ARRMAKEBOX -> TODO()
+                            Intrinsic.ARRGET -> TODO()
+                            Intrinsic.ARRSET -> TODO()
                         }
                         else -> TODO()
                     }

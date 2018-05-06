@@ -2,7 +2,11 @@ package com.github.h0tk3y.compilersCourse.language
 
 import java.util.*
 
-open class FunctionDeclaration(open val name: String, val parameters: List<Variable>, open val body: Statement) {
+open class FunctionDeclaration(
+    open val name: String,
+    val parameters: List<Variable>,
+    open val body: Statement
+) {
     override fun hashCode(): Int = Objects.hash(name, parameters)
     override fun equals(other: Any?) =
             other is FunctionDeclaration && other.name == name && other.parameters == parameters
@@ -27,9 +31,14 @@ sealed class Intrinsic(name: String, parameters: List<Variable>, val throws: Boo
     object STRCAT : Intrinsic("strcat", listOf(Variable("S1"), Variable("S2")))
     object STRSUB : Intrinsic("strsub", listOf(Variable("S"), Variable("i"), Variable("j")))
     object STRLEN : Intrinsic("strlen", listOf(Variable("S")))
+    object ARRMAKE : Intrinsic("arrmake", listOf(Variable("n"), Variable("init")))
+    object ARRMAKEBOX : Intrinsic("Arrmake", listOf(Variable("n"), Variable("Init")))
+    object ARRGET : Intrinsic("arrget", listOf(Variable("A"), Variable("i")))
+    object ARRSET : Intrinsic("arrset", listOf(Variable("A"), Variable("i"), Variable("v")))
 
     companion object {
-        val resolvable by lazy { listOf(READ, WRITE, STRMAKE, STRCMP, STRGET,
-                                        STRDUP, STRSET, STRCAT, STRSUB, STRLEN) }
+        val resolvable by lazy {
+            listOf(READ, WRITE, STRMAKE, STRCMP, STRGET, STRDUP, STRSET, STRCAT, STRSUB, STRLEN, ARRMAKE, ARRMAKEBOX)
+        }
     }
 }

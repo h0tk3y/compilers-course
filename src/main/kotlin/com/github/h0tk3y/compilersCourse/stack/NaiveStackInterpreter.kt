@@ -102,6 +102,10 @@ class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, Lis
                                     val str = stack.last()
                                     pop(1).push(stringPool[str].size)
                                 }
+                                Intrinsic.ARRMAKE -> TODO()
+                                Intrinsic.ARRMAKEBOX -> TODO()
+                                Intrinsic.ARRGET -> TODO()
+                                Intrinsic.ARRSET -> TODO()
                             }
                         }
                     }

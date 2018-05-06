@@ -2,7 +2,7 @@
 #include<stdlib.h>
 #include<string.h>
 
-void write(int val) {
+void write(int val_type, int val) {
 	printf("%d\n", val);
 }
 
@@ -15,27 +15,39 @@ int read() {
 
 extern size_t strlen(const char *str);
 
+size_t strlen_2(int str_type, const char *str) {
+    return strlen(str);
+}
+
 extern char * strdup(const char *str);
+
+char *strdup_2(int str_type, const char *str) {
+    return strdup(str);
+}
 
 extern int strcmp(const char *str1, const char *str2);
 
-char strget(const char *s, size_t i) {
+int strcmp_4(int str1_type, const char *str1, int str2_type, const char *str2) {
+    return strcmp(str1, str2);
+}
+
+char strget(int s_type, const char *s, int i_type, size_t i) {
     return s[i];
 }
 
-int strset(char *s, size_t i, char c) {
+int strset(int s_type, char *s, int i_type, size_t i, int c_type, char c) {
     s[i] = c;
     return 0;
 }
 
-char *strsub(const char *s, size_t from, size_t n) {
+char *strsub(int s_type, const char *s, int from_type, size_t from, int n_type, size_t n) {
     char* result = (char*) malloc((n + 1) * sizeof(char));
     result[n] = '\0';
     memcpy(result, s + from, n);
     return result;
 }
 
-char *strcat(char *l, const char *r) {
+char *strcat_4(int l_type, char *l, int r_type, const char *r) {
     size_t n1 = strlen(l);
     size_t n2 = strlen(r);
     size_t n = n1 + n2;
@@ -46,7 +58,7 @@ char *strcat(char *l, const char *r) {
     return result;
 }
 
-char *strmake(size_t n, char c) {
+char *strmake(int n_type, size_t n, int c_type, char c) {
     char *result = (char*) malloc((n + 1) * sizeof(char));
     result[n] = '\0';
     memset(result, c, n);

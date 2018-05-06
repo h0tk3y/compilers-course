@@ -46,6 +46,10 @@ fun Intrinsic.runOn(argMap: Map<Variable, Any>, currentMachine: MachineState): M
             currentMachine.copy(result = s.copyOfRange(from, from + n))
         }
         Intrinsic.STRLEN -> currentMachine.copy(result = (argMap[ps[0]] as CharArray).size)
+        Intrinsic.ARRMAKE -> TODO()
+        Intrinsic.ARRMAKEBOX -> TODO()
+        Intrinsic.ARRGET -> TODO()
+        Intrinsic.ARRSET -> TODO()
     }
 }
 
