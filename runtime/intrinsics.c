@@ -64,3 +64,58 @@ char *strmake(int n_type, size_t n, int c_type, char c) {
     memset(result, c, n);
     return result;
 }
+
+const int type_int = 0;
+const int type_array = 1;
+
+const int header_size = 3;
+
+int *arrmake(int n_type, size_t n, int init_type, int init) {
+    int* result = (int*) malloc((n + header_size) * sizeof(int));
+    result[0] = type_int;
+    result[1] = 0; // ref count
+    result[2] = n; // size
+    for (int i = 0; i <= n; i++) {
+        result[i + header_size] = init;
+    }
+    // TODO: return the type_array as well
+    return result;
+}
+
+int *Arrmake(int n_type, size_t n, int init_type, int init) {
+    int* result = (int*) malloc((n + header_size) * sizeof(int) * 2); // * 2: boxed items store the type
+    result[0] = type_array;
+    result[1] = 0; // ref count
+    result[2] = n; // size
+    for (int i = 0; i <= n; i++) {
+        int offset = header_size + (i * 2);
+        result[offset + 0] = init;
+        result[offset + 1] = init_type;
+    }
+    // TODO: perform ref counting
+    // TODO: return the type_array as well
+    return result;
+}
+
+int arrget(int array_type, int *array, int index_type, int index) {
+    int arr_type = array[0];
+    int item_index = header_size + (arr_type == type_int ? index : index * 2);
+    int item = array[item_index];
+    int type = (arr_type == type_int ? type_int : array[item_index + 1]);
+    //TODO: return the type as well
+    return item;
+}
+
+int *arrset(int array_type, int *array, int index_type, int index, int value_type, int value) {
+    int arr_type = array[0];
+    if (arr_type == type_int && value_type == type_array) {
+        // TODO: error
+    }
+    int item_index = header_size + (arr_type == type_int ? index : index * 2);
+    array[item_index] = value;
+    if (arr_type == type_array) {
+        array[item_index + 1] = value_type;
+    }
+    // TODO: perform ref counting
+    return 0;
+}
