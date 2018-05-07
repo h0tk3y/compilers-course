@@ -128,6 +128,9 @@ class StatementToStackCompiler : Compiler<Program, StackProgram> {
             emit(placeholder.fillFunction(jumpTo), placeholder.position)
         }
 
+        var arrayLiteralDepth = 0
+        lateinit var compileArrayLiteral: (arrayLiteral: ArrayLiteral) -> Unit
+
         fun emitThrownExceptionHandling() {
             emit(Ld(thrownExceptionVariable))
             emit(Push(Const(0)))
@@ -175,8 +178,28 @@ class StatementToStackCompiler : Compiler<Program, StackProgram> {
                     }
                     Unit
                 }
+                is ArrayLiteral -> compileArrayLiteral(expression)
             }.exhaustive
             check(exprsDebugStack.pop() == expression)
+        }
+
+        compileArrayLiteral = { arrayLiteral ->
+            arrayLiteralDepth++
+            val arrayVariable = Variable("###array-under-construction-$arrayLiteralDepth")
+            emit(Push(Const(arrayLiteral.initializers.size)))
+            emit(Push(Const(0)))
+            val intrinsic = if (arrayLiteral.isBoxed) Intrinsic.ARRMAKEBOX else Intrinsic.ARRMAKE
+            emit(Call(intrinsic))
+            emit(St(arrayVariable))
+            for ((index, init) in arrayLiteral.initializers.withIndex()) {
+                emit(Ld(arrayVariable))
+                emit(Push(Const(index)))
+                compileExpression(init)
+                emit(Call(Intrinsic.ARRSET))
+                emit(Pop)
+            }
+            emit(Ld(arrayVariable))
+            arrayLiteralDepth--
         }
 
         fun compileStatement(statement: Statement) {

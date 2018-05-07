@@ -11,9 +11,6 @@ data class MachineState(val input: List<Int>,
                         val exceptionType: ExceptionType? = null,
                         val functionReferences: Map<FunctionDeclaration, Statement>)
 
-internal fun ((Variable) -> Int).andMap(mapping: Pair<Variable, Int>): (Variable) -> Int =
-        { if (it == mapping.first) mapping.second else this(it) }
-
 internal fun Map<Variable, Int>.andMap(mapping: Pair<Variable, Int>): Map<Variable, Int> =
     this + mapping
 
@@ -46,10 +43,35 @@ fun Intrinsic.runOn(argMap: Map<Variable, Any>, currentMachine: MachineState): M
             currentMachine.copy(result = s.copyOfRange(from, from + n))
         }
         Intrinsic.STRLEN -> currentMachine.copy(result = (argMap[ps[0]] as CharArray).size)
-        Intrinsic.ARRMAKE -> TODO()
-        Intrinsic.ARRMAKEBOX -> TODO()
-        Intrinsic.ARRGET -> TODO()
-        Intrinsic.ARRSET -> TODO()
+        Intrinsic.ARRMAKE -> currentMachine.copy(result = Array<Any>(argMap[ps[0]] as Int) { argMap[ps[1]] as Int })
+        Intrinsic.ARRMAKEBOX -> currentMachine.copy(result = Array(argMap[ps[0]] as Int) {
+            val arrayInit = argMap[ps[1]]
+            @Suppress("UNCHECKED_CAST")
+            when (arrayInit) {
+                is Array<*> -> arrayInit.copyOf() as Array<Any>
+                else -> error("Expected Array as second argument, got $arrayInit")
+            }
+        })
+        Intrinsic.ARRGET -> {
+            val array = argMap[ps[0]]
+            val index = argMap[ps[1]] as Int
+            when (array) {
+                is Array<*> -> currentMachine.copy(result = array[index] as Any)
+                else -> error("Expected Array as first argument, got $array")
+            }
+        }
+        Intrinsic.ARRSET -> {
+            val array = argMap[ps[0]]
+            val index = argMap[ps[1]] as Int
+            val value = argMap[ps[2]]!!
+            currentMachine.copy(result = 0.apply {
+                @Suppress("UNCHECKED_CAST")
+                when (array) {
+                    is Array<*> -> (array as Array<Any>)[index] = value
+                    else -> error("Expected either Array as first argument, got $array")
+                }
+            })
+        }
     }
 }
 
@@ -101,6 +123,20 @@ class NaiveInterpreter : Interpreter<MachineState, Statement, List<Int>> {
         }
         is StringLiteral -> {
             machine.copy(result = value.toCharArray())
+        }
+        is ArrayLiteral -> {
+            val newArray = arrayOfNulls<Any>(initializers.size)
+            var currentMachine = machine
+            for ((index, init) in initializers.withIndex()) {
+                currentMachine = init.evaluate(currentMachine)
+                newArray[index] = currentMachine.result
+                if (currentMachine.shouldReturn)
+                    break
+            }
+            if (currentMachine.shouldReturn)
+                currentMachine
+            else
+                currentMachine.copy(result = newArray)
         }
     }
 

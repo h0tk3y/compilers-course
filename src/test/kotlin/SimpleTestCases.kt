@@ -64,3 +64,38 @@ val funCallOnLongStack = ParsedTestCaseMatchOutput("funCallOnLongStack", """
     x := 1 + 2 + 3 - 4 + 5 * 6 / 7 % 8 + someFun(1, 2, 3)
     write(x)
     """.trimIndent(), listOf(), listOf(1 + 2 + 3 - 4 + 5 * 6 / 7 % 8 + (1 + 2 * 3))).registerSimple()
+
+val arrsExample = ParsedTestCaseMatchOutput(
+    "arrsExample", """
+        fun writes(i) begin
+            write(i)
+            return i
+        end
+
+        arr = [writes(101), writes(102), writes(103), writes(104)]
+        arr[0] := 1
+        arr[1] := 2
+        arr[2] := 3
+        write(arr[1])
+        write(arr[2])
+        write(arr[3])
+    """.trimIndent(), listOf(), listOf(101, 102, 103, 104, 2, 3, 104)
+).registerSimple()
+
+val boxedArrSimple = ParsedTestCaseMatchOutput(
+    "boxedArrSimple", """
+        A = {[1, 2, 3], [4, 5, 6], [7, 8, 9], 999}
+        for i := 0, i < 3, i := i + 1 do
+            for j := 0, j < 3, j := j + 1 do
+                write(A[i][j])
+            od
+        od;
+        A[0] = [-1, -2, -3]
+        A[1][1] = 100
+        for i := 0, i < 3, i := i + 1 do
+            write(A[0][i])
+        od
+        write(A[1][1])
+        write(A[3])
+    """.trimIndent(), listOf(), listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, -1, -2, -3, 100, 999)
+).registerSimple()

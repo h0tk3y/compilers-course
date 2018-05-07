@@ -32,6 +32,7 @@ private class Resolution(val program: Program) {
         is BinaryOperation -> expression.copy(left = resolveCallsIn(expression.left),
                                               right = resolveCallsIn(expression.right))
         is StringLiteral -> expression
+        is ArrayLiteral -> expression.copy(initializers = expression.initializers.map { resolveCallsIn<Expression>(it) })
     } as T
 
     private fun resolveCallsInStatement(s: Statement): Statement = when (s) {

@@ -13,12 +13,13 @@ data class StackMachineState(val input: List<Int>,
                              val stack: List<Int>,
                              val instructionPointer: Int,
                              val thrownExceptionId: Int,
-                             val stringPool: List<CharArray>)
+                             val stringPool: List<CharArray>,
+                             val arraysHeap: List<IntArray>)
 
 class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, List<Int>> {
     override fun initialState(input: List<Int>): StackMachineState {
         val emptyState = emptyMap<Variable, Int>().andMap(currentExceptionVariable to 0)
-        return StackMachineState(input, emptyList(), emptyState, emptyList(), 0, 0, emptyList())
+        return StackMachineState(input, emptyList(), emptyState, emptyList(), 0, 0, emptyList(), emptyList())
     }
 
     private fun StackMachineState.pop(n: Int) = copy(stack = stack.dropLast(n))
@@ -53,7 +54,7 @@ class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, Lis
                             input, output,
                             f.parameters.zip(stack.takeLast(f.parameters.size)).toMap()
                                 .andMap(currentExceptionVariable to 0),
-                            emptyList(), 0, 0, stringPool)
+                            emptyList(), 0, 0, stringPool, arraysHeap)
                         val result = join(internalMachine, StackProgram(p.functions, f, p.literalPool))
                         val returnValue = result.stack.last()
                         val thrownException = result.thrownExceptionId
@@ -102,10 +103,23 @@ class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, Lis
                                     val str = stack.last()
                                     pop(1).push(stringPool[str].size)
                                 }
-                                Intrinsic.ARRMAKE -> TODO()
-                                Intrinsic.ARRMAKEBOX -> TODO()
-                                Intrinsic.ARRGET -> TODO()
-                                Intrinsic.ARRSET -> TODO()
+                                Intrinsic.ARRMAKE, Intrinsic.ARRMAKEBOX  -> {
+                                    val (initVal, size) = stack.reversed()
+                                    val newArray = IntArray(size) { initVal }
+                                    val newArrayId = arraysHeap.size
+                                    copy(arraysHeap = arraysHeap.plusElement(newArray)).pop(2).push(newArrayId)
+                                }
+                                Intrinsic.ARRGET -> {
+                                    val (index, arrId) = stack.reversed()
+                                    val result = arraysHeap[arrId][index]
+                                    pop(2).push(result)
+                                }
+                                Intrinsic.ARRSET -> {
+                                    val (value, index, arrid) = stack.reversed()
+                                    val resultArray = arraysHeap[arrid].run { take(index) + value + drop(index + 1) }.toIntArray()
+                                    val resultArrayHeap = arraysHeap.run { take(arrid).plusElement(resultArray) + drop(arrid + 1) }
+                                    copy(arraysHeap = resultArrayHeap).pop(3).push(0)
+                                }
                             }
                         }
                     }
