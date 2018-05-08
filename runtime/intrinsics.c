@@ -106,20 +106,78 @@ int arrget(int array_type, int *array, int index_type, int index) {
     return item;
 }
 
+void ref_increase(int* array);
+void ref_decrease(int* array);
+
 int *arrset(int array_type, int *array, int index_type, int index, int value_type, int value) {
     int arr_type = array[0];
     if (arr_type == type_int && value_type == type_array) {
         // TODO: error
     }
     int item_index = header_size + (arr_type == type_int ? index : index * 2);
+    if (arr_type == type_array && array[item_index + 1] == type_array) {
+        ref_decrease((int*) array[item_index]);
+    }
     array[item_index] = value;
     if (arr_type == type_array) {
         array[item_index + 1] = value_type;
+        if (value_type == type_array) {
+            ref_increase((int*) value);
+        }
     }
-    // TODO: perform ref counting
     return 0;
 }
 
 int arrlen(int array_type, int *array) {
     return array[2];
+}
+
+void ref_decrease(int* array) {
+    if (array[0] == -1) { // array is already in the procedure of ref operation
+        return;
+    }
+
+    int arr_type = array[0];
+    array[0] = -1;
+
+    int ref_count = array[1];
+    int size = array[2];
+
+    for (int i = 0; i < size; ++i) {
+        int item_index = header_size + (arr_type == type_int ? i : i * 2);
+        int item_type = (arr_type == type_int ? type_int : array[item_index + 1]);
+        if (item_type != type_int) {
+            ref_decrease((int *) array[item_index]);
+        }
+    }
+
+    int new_ref_count = ref_count - 1;
+    if (new_ref_count == 0) {
+        free(array);
+    } else {
+        array[0] = arr_type;
+    }
+}
+
+void ref_increase(int* array) {
+    if (array[0] == -1) { // array is already in the procedure of ref operation
+        return;
+    }
+
+    int arr_type = array[0];
+    array[0] = -1;
+
+    int ref_count = array[1];
+    int size = array[2];
+
+    for (int i = 0; i < size; ++i) {
+        int item_index = header_size + (arr_type == type_int ? i : i * 2);
+        int item_type = (arr_type == type_int ? type_int : array[item_index + 1]);
+        if (item_type != type_int) {
+            ref_increase((int *) array[item_index]);
+        }
+    }
+
+    int new_ref_count = ref_count + 1;
+    array[0] = arr_type;
 }
