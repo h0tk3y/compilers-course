@@ -79,7 +79,8 @@ val arrsExample = ParsedTestCaseMatchOutput(
         write(arr[1])
         write(arr[2])
         write(arr[3])
-    """.trimIndent(), listOf(), listOf(101, 102, 103, 104, 2, 3, 104)
+        write(arrlen(arr))
+    """.trimIndent(), listOf(), listOf(101, 102, 103, 104, 2, 3, 104, 4)
 ).registerSimple()
 
 val boxedArrSimple = ParsedTestCaseMatchOutput(
@@ -97,5 +98,7 @@ val boxedArrSimple = ParsedTestCaseMatchOutput(
         od
         write(A[1][1])
         write(A[3])
-    """.trimIndent(), listOf(), listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, -1, -2, -3, 100, 999)
+        write(arrlen(A))
+        write(arrlen(A[0]))
+    """.trimIndent(), listOf(), listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, -1, -2, -3, 100, 999, 4, 3)
 ).registerSimple()

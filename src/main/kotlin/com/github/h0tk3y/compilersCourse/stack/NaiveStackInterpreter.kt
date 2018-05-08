@@ -120,6 +120,11 @@ class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, Lis
                                     val resultArrayHeap = arraysHeap.run { take(arrid).plusElement(resultArray) + drop(arrid + 1) }
                                     copy(arraysHeap = resultArrayHeap).pop(3).push(0)
                                 }
+                                Intrinsic.ARRLEN -> {
+                                    val arrId = stack.last()
+                                    val array = arraysHeap[arrId]
+                                    pop(1).push(array.size)
+                                }
                             }
                         }
                     }

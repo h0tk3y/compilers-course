@@ -72,6 +72,10 @@ fun Intrinsic.runOn(argMap: Map<Variable, Any>, currentMachine: MachineState): M
                 }
             })
         }
+        Intrinsic.ARRLEN -> {
+            val array = argMap[ps[0]] as Array<*>
+            currentMachine.copy(result = array.size)
+        }
     }
 }
 

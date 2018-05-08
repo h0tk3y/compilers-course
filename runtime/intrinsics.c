@@ -119,3 +119,7 @@ int *arrset(int array_type, int *array, int index_type, int index, int value_typ
     // TODO: perform ref counting
     return 0;
 }
+
+int arrlen(int array_type, int *array) {
+    return array[2];
+}

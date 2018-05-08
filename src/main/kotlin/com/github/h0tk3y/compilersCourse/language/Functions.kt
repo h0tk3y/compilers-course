@@ -35,10 +35,13 @@ sealed class Intrinsic(name: String, parameters: List<Variable>, val throws: Boo
     object ARRMAKEBOX : Intrinsic("Arrmake", listOf(Variable("n"), Variable("Init")))
     object ARRGET : Intrinsic("arrget", listOf(Variable("A"), Variable("i")))
     object ARRSET : Intrinsic("arrset", listOf(Variable("A"), Variable("i"), Variable("v")))
+    object ARRLEN : Intrinsic("arrlen", listOf(Variable("A")))
 
     companion object {
         val resolvable by lazy {
-            listOf(READ, WRITE, STRMAKE, STRCMP, STRGET, STRDUP, STRSET, STRCAT, STRSUB, STRLEN, ARRMAKE, ARRMAKEBOX)
+            listOf(READ, WRITE,
+                   STRMAKE, STRCMP, STRGET, STRDUP, STRSET, STRCAT, STRSUB, STRLEN,
+                   ARRMAKE, ARRMAKEBOX, ARRLEN)
         }
     }
 }
