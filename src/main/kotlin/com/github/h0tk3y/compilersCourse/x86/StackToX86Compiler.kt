@@ -380,6 +380,9 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                         emit("movl $0, %eax")
                     }
                     emit("leave")
+                    if (functionDeclaration.name == "main") {
+                        emit("movl $0, %eax")
+                    }
                     emit("ret")
                 }
                 Pop -> {

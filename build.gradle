@@ -29,5 +29,5 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile) {
 }
 
 test {
-    jvmArgs '-Xss515m'
+    jvmArgs '-Xss4m'
 }

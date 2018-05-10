@@ -58,17 +58,31 @@ class X86Runner : TestCaseRunner() {
         val asmFile = File(tmpDir, "asm.s").apply { writeText(asm) }
         val exeFile = File(tmpDir, "output.exe")
 
-        val runtimeFile = if (compiler.targetPlatform == TargetPlatform.WIN)
-            File("runtime/intrinsics-win.o") else
-            File("runtime/intrinsics.o")
+        val runtimeFile = File("runtime/intrinsics.o")
+
+        if (!runtimeFile.exists()) {
+            val runtimeSourceFile = File(runtimeFile.parent, "intrinsics.c")
+            if (!runtimeSourceFile.exists()) {
+                throw RuntimeException("Could not find 'intrinsics.o' or 'intrinsics.c' in 'runtime' directory.")
+            }
+            val assembleRuntimeCmd =
+                arrayOf("gcc", "-m32", "-c", runtimeSourceFile.absolutePath, "-o", runtimeFile.absolutePath)
+            Runtime.getRuntime().exec(assembleRuntimeCmd).run {
+                waitFor()
+                inputStream.reader().forEachLine(::println)
+                errorStream.reader().forEachLine(::println)
+                exitValue()
+            }
+        }
 
         val cmd = arrayOf("gcc", "-m32", runtimeFile.absolutePath, asmFile.absolutePath,
                           "-o", exeFile.absolutePath)
-        val exec = Runtime.getRuntime().exec(cmd)
-        exec.waitFor()
-        val gccOutput = exec.inputStream.reader().forEachLine(::println)
-        val gccErr = exec.errorStream.reader().forEachLine(::println)
-        val gccResult = exec.exitValue()
+        Runtime.getRuntime().exec(cmd).run {
+            waitFor()
+            inputStream.reader().forEachLine(::println)
+            errorStream.reader().forEachLine(::println)
+            exitValue()
+        }
         exeFile
     }
 
