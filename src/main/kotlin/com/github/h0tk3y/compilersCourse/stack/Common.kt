@@ -7,6 +7,7 @@ fun collectVariables(statements: Iterable<StackStatement>) = statements.flatMap 
     when (it) {
         is Ld -> listOf(it.v)
         is St -> listOf(it.v)
+        is Pop -> listOf(poppedUnusedValueVariable)
         is Call -> if (it.function.canThrow) listOf(thrownExceptionVariable) else emptyList()
         is TransEx -> listOf(currentExceptionVariable)
         else -> emptyList()

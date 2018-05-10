@@ -4,17 +4,24 @@ import com.github.h0tk3y.compilersCourse.stack.NaiveStackInterpreter
 import com.github.h0tk3y.compilersCourse.stack.StatementToStackCompiler
 import com.github.h0tk3y.compilersCourse.x86.StatementToX86Compiler
 import com.github.h0tk3y.compilersCourse.x86.TargetPlatform
+import org.junit.Assert
+import org.junit.AssumptionViolatedException
 import java.io.File
 import java.nio.file.Files
 
 abstract class TestCaseRunner {
-    abstract fun runTestCase(testCase: TestCase)
+    open fun runTestCase(testCase: TestCase) {
+        if (!testCase.canRunOnRunner(this)) {
+            throw AssumptionViolatedException("The test case cannor run on this runner ${this@TestCaseRunner}.")
+        }
+    }
 }
 
 class InterpreterRunner : TestCaseRunner() {
     val interpreter = NaiveProgramInterpreter()
 
     override fun runTestCase(testCase: TestCase) {
+        super.runTestCase(testCase)
         val output = interpreter.run(testCase.program, testCase.input).output
         testCase.checkOutput(output)
     }
@@ -25,6 +32,7 @@ class StackRunner : TestCaseRunner() {
     val interpreter = NaiveStackInterpreter()
 
     override fun runTestCase(testCase: TestCase) {
+        super.runTestCase(testCase)
         val stackProgram = compiler.compile(testCase.program)
         val stackMachine = interpreter.run(stackProgram, testCase.input)
         testCase.checkOutput(stackMachine.output)
@@ -72,12 +80,18 @@ class X86Runner : TestCaseRunner() {
             stdin.write("$i\r\n")
         }
         stdin.close()
+        val returnCode = exec.waitFor()
         val result = exec.inputStream.reader().readLines()
-        exec.waitFor()
+        if (returnCode != 0) {
+            Assert.fail("Program returned with non-zero code $returnCode. \n" +
+                        "Output: ${result} \n" +
+                        "Error: ${exec.errorStream.reader().readText()}")
+        }
         return result
     }
 
     override fun runTestCase(testCase: TestCase) {
+        super.runTestCase(testCase)
         val output = compiler.compile(testCase.program)
         val exe = assemble(output)
         val out = runExe(exe, testCase.input.map { "$it" })

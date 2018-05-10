@@ -75,8 +75,7 @@ object ProgramGrammar : Grammar<Program>() {
     private val CHARLIT by token("'.'")
     private val STRINGLIT by token("\".*?\"")
 
-    private val REF_ID by token("[A-Z]\\w*")
-    private val ID by token("[a-z]\\w*")
+    private val ID by token("[A-Za-z]\\w*")
 
     private val WS by token("\\s+", ignore = true)
     private val NEWLINE by token("[\r\n]+", ignore = true)
@@ -120,7 +119,7 @@ object ProgramGrammar : Grammar<Program>() {
                 FunctionCall(UnresolvedFunction(name.text, args.size), args)
             }
 
-    private val variable by (ID or REF_ID) use { Variable(text) }
+    private val variable by ID use { Variable(text) }
 
     private val stringLiteral by STRINGLIT use { StringLiteral(text.removeSurrounding("\"", "\"")) }
 

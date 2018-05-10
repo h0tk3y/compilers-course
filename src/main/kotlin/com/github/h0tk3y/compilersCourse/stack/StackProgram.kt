@@ -26,6 +26,7 @@ data class StackProgram(val functions: Map<FunctionDeclaration, List<StackStatem
 val currentExceptionVariable = Variable("###current-exception")
 val thrownExceptionVariable = Variable("###thrown-exception")
 val exceptionDataVariable = Variable("###exception-data")
+val poppedUnusedValueVariable = Variable("###popped-unused")
 
 val returnNormallyFakeException = ExceptionType("ReturnNormally")
 val returnNormallyFakeExceptionId = -1

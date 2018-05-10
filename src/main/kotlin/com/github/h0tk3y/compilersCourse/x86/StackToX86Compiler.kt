@@ -48,13 +48,21 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
             }
         }
 
-        fun emitPop(dst: String) {
+        fun emitPop(dst: String?) {
             val location = symbolicStack.pop()
-            when (location) {
-                programStack -> emit("popl $dst # ${prettyPrintStack(-1)}")
-                else -> {
-                    val regName = "%" + location.name
-                    emit("movl $regName, $dst # ${prettyPrintStack(-1)}")
+            if (dst == null) {
+                if (location == programStack) {
+                    emit("add $4, %esp; # ${prettyPrintStack(-1)}")
+                } else {
+                    emit("# dropping stack item, ${prettyPrintStack(-1)}")
+                }
+            } else {
+                when (location) {
+                    programStack -> emit("popl $dst # ${prettyPrintStack(-1)}")
+                    else -> {
+                        val regName = "%" + location.name
+                        emit("movl $regName, $dst # ${prettyPrintStack(-1)}")
+                    }
                 }
             }
         }
@@ -114,6 +122,9 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
     }
 
     private fun CompilationEnvironment.compileFunction(functionDeclaration: FunctionDeclaration, source: List<StackStatement>) {
+        val intrinsicRefIncreaseName = formatFunctionName("ref_increase")
+        val intrinsicRefDecreaseName = formatFunctionName("ref_decrease")
+
         functionDeclaration.name.let { fName ->
             emit(".globl ${formatFunctionName(fName)}")
             emit("${formatFunctionName(fName)}:")
@@ -135,9 +146,32 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
         val paramOffsets = functionDeclaration.parameters.asSequence().zip(generateSequence(paramsBoundary + 4) { it + 8 }).toMap()
         val paramTypeOffsets = functionDeclaration.parameters.asSequence().zip(generateSequence(paramsBoundary) { it + 8 }).toMap()
 
+        fun emitRefIncrease(refLocation: String, typeLocation: String) {
+            emit("pushl %ecx")
+            emit("pushl %edx")
+            emit("pushl $refLocation")
+            emit("pushl $typeLocation")
+            emit("call $intrinsicRefIncreaseName")
+            emit("add $8, %esp")
+            emit("popl %edx")
+            emit("popl %ecx")
+        }
+
+        fun emitRefDecrease(refLocation: String, typeLocation: String) {
+            emit("pushl %ecx")
+            emit("pushl %edx")
+            emit("pushl $refLocation")
+            emit("pushl $typeLocation")
+            emit("call $intrinsicRefDecreaseName")
+            emit("add $8, %esp")
+            emit("popl %edx")
+            emit("popl %ecx")
+        }
+
         functionDeclaration.parameters.forEach {
             emit("# value offset for param $it: ${paramOffsets[it]}")
             emit("# type offset for param $it: ${paramTypeOffsets[it]}")
+            emitRefIncrease("${paramOffsets[it]}(%ebp)", "${paramTypeOffsets[it]}(%ebp)")
         }
 
         locals.forEach {
@@ -174,8 +208,12 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                     emitPush("${typeOffsets[s.v]}(%ebp)")
                 }
                 is St -> {
-                    emitPop("${typeOffsets[s.v]}(%ebp)")
-                    emitPop("${valueOffsets[s.v]}(%ebp)")
+                    val varValueOffset = "${valueOffsets[s.v]}(%ebp)"
+                    val varTypeOffset = "${typeOffsets[s.v]}(%ebp)"
+                    emitRefDecrease(varValueOffset, varTypeOffset)
+                    emitPop(varTypeOffset)
+                    emitPop(varValueOffset)
+                    emitRefIncrease(varValueOffset, varTypeOffset)
                 }
                 is Unop -> when (s.kind) {
                     Not -> {
@@ -312,11 +350,11 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                         emit("popl %${loc.name}")
                     }
                     s.function.parameters.forEach {
-                        emitPop("%ebx") // TODO don't overwrite the EBX register as it will store the returned type
-                        emitPop("%ebx")
+                        emitPop(null) // drop the parameters from the stack
+                        emitPop(null)
                     }
                     emitPush("%eax")
-                    emitPushType(Type.SCALAR) // TODO push actual type of the value returned from the function
+                    emitPush("%ebx") // push type returned in ebx from the function
                 }
                 TransEx -> {
                     if (functionDeclaration.name != "main") {
@@ -327,6 +365,13 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                     }
                 }
                 Ret0, Ret1 -> {
+                    for ((k, valueOffset) in valueOffsets) {
+                        if (k == exceptionDataVariable)
+                            continue
+                        val typeOffset = typeOffsets[k]
+                        emitRefDecrease("${valueOffset}(%ebp)", "${typeOffset}(%ebp)")
+                    }
+
                     if (s == Ret1) {
                         emitPop("%ebx")
                         emitPop("%eax")
@@ -338,8 +383,7 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
                     emit("ret")
                 }
                 Pop -> {
-                    emitPop("%ebx")
-                    emitPop("%eax")
+                    compileInstruction(i, St(poppedUnusedValueVariable))
                 }
             }
 

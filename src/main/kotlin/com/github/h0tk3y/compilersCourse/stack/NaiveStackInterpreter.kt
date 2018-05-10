@@ -61,7 +61,8 @@ class NaiveStackInterpreter() : Interpreter<StackMachineState, StackProgram, Lis
                         copy(result.input, result.output,
                              stack = stack.dropLast(f.parameters.size) + returnValue,
                              state = state.andMap(thrownExceptionVariable to thrownException),
-                             stringPool = result.stringPool)
+                             stringPool = result.stringPool,
+                             arraysHeap = result.arraysHeap)
                     }
                     else -> {
                         copy(state = state.andMap(thrownExceptionVariable to 0)).run {

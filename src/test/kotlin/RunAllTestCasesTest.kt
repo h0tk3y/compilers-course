@@ -34,6 +34,14 @@ class RunSimpleTestCases : RunAllTestCases() {
 }
 
 @RunWith(Parameterized::class)
+class RunArrayTestCases : RunAllTestCases() {
+    companion object {
+        @Parameterized.Parameters(name = "test case: {0}")
+        @JvmStatic fun testCases() = arrayTestCases
+    }
+}
+
+@RunWith(Parameterized::class)
 class RunExceptionTestCases : RunAllTestCases() {
     companion object {
         @Parameterized.Parameters(name = "test case: {0}")
@@ -45,7 +53,7 @@ class RunExceptionTestCases : RunAllTestCases() {
 class RunCoreTestCases : RunAllTestCases() {
     companion object {
         @Parameterized.Parameters(name = "test case: {0}")
-        @JvmStatic fun testCases() = coreTestsNoArrays
+        @JvmStatic fun testCases() = coreTests
     }
 }
 

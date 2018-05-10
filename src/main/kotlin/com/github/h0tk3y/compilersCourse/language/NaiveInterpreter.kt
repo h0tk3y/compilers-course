@@ -48,8 +48,9 @@ fun Intrinsic.runOn(argMap: Map<Variable, Any>, currentMachine: MachineState): M
             val arrayInit = argMap[ps[1]]
             @Suppress("UNCHECKED_CAST")
             when (arrayInit) {
-                is Array<*> -> arrayInit.copyOf() as Array<Any>
-                else -> error("Expected Array as second argument, got $arrayInit")
+                is Int -> arrayInit
+                is Array<*> -> arrayInit as Array<Any>
+                else -> error("Expected Int or Array as second argument, got $arrayInit")
             }
         })
         Intrinsic.ARRGET -> {

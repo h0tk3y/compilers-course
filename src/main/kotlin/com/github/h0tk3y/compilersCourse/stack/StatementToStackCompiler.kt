@@ -190,15 +190,17 @@ class StatementToStackCompiler : Compiler<Program, StackProgram> {
             emit(Push(Const(0)))
             val intrinsic = if (arrayLiteral.isBoxed) Intrinsic.ARRMAKEBOX else Intrinsic.ARRMAKE
             emit(Call(intrinsic))
-            emit(St(arrayVariable))
-            for ((index, init) in arrayLiteral.initializers.withIndex()) {
+            if (arrayLiteral.initializers.isNotEmpty()) {
+                emit(St(arrayVariable))
+                for ((index, init) in arrayLiteral.initializers.withIndex()) {
+                    emit(Ld(arrayVariable))
+                    emit(Push(Const(index)))
+                    compileExpression(init)
+                    emit(Call(Intrinsic.ARRSET))
+                    emit(Pop)
+                }
                 emit(Ld(arrayVariable))
-                emit(Push(Const(index)))
-                compileExpression(init)
-                emit(Call(Intrinsic.ARRSET))
-                emit(Pop)
             }
-            emit(Ld(arrayVariable))
             arrayLiteralDepth--
         }
 
