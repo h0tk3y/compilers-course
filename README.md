@@ -5,8 +5,8 @@ Practical part of the compilers course (2017)
 
 ### Common tasks and tests
 
-The common tasks are tested with JUnit `@Parameterized` tests generated from 
-[`anlun/comiler-tests`](https://github.com/anlun/compiler-tests), see [`FileTestCases.kt`](https://github.com/h0tk3y/compilers-course/blob/master/src/test/kotlin/FileTestCases.kt).
+The common tasks are tested with JUnit `Parameterized` tests generated from 
+[`anlun/comiler-tests`](https://github.com/anlun/compiler-tests), see [`FileTestCases.kt`](https://github.com/h0tk3y/compilers-course/blob/master/src/test/kotlin/FileTestCases.kt). There's also a pack of my own  tests in the same source set.
 
 ### Implementation details
 
@@ -14,9 +14,11 @@ To precisely track boxed and unboxed values, the x86 back-end stores each value 
 The value kind is also passed to and returned from functions (the intrinsics show this in their signatures) along with the value. A type is returned
 from a function in the `ebx` register.
 
+Memory management is done through reference counting. There's a memory stress test here: [`arrayMemoryStressTest`](https://github.com/h0tk3y/compilers-course/blob/master/src/test/kotlin/ArrayTestCases.kt#L129).
+
 ### Personal task – Java-like exceptions
 
-The following is supported: 
+Check the [ExceptionTestCases.kt](https://github.com/h0tk3y/compilers-course/blob/c2d29b5c43408bf8d46e88a17bce3e219b583dff/src/test/kotlin/ExceptionTestCases.kt). The following is supported: 
 
 * `throw (E e)` statement where `E` is an identifier for an exception type, and `e` is the exception data
 
