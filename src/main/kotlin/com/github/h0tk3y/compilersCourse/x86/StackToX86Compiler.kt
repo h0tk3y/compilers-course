@@ -18,17 +18,11 @@ class StackToX86Compiler(val targetPlatform: TargetPlatform) : Compiler<StackPro
     class CompilationEnvironment(val program: StackProgram) {
         val result = mutableListOf<AsmDirective>()
 
-        @Deprecated("just don't")
-        fun emit(i: String): Unit = TODO()
-
         fun emit(i: AsmDirective) {
             result.add(i)
         }
 
         fun pushSsType(type: Type) = pushSs(FromConstant(type.flag))
-
-        @Deprecated("just don't")
-        fun pushSs(src: String): String = TODO()
 
         fun pushSs(src: AsmLocation): SymbolicStackLocation {
             if (src is SymbolicStackRegister) {
