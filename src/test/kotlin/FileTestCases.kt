@@ -43,8 +43,8 @@ fun readTests(testRoot: File, takeFirstN: Int? = null): List<TestCaseMatchOutput
     }
 }
 
-val coreTests = (listOf("core").flatMap { readTests(File("compiler-tests/$it")) }).registerSimple()
+val coreTests = (listOf("core").flatMap { readTests(File("compiler-tests/$it")) })
 
-val expressionTests = (listOf("expressions").flatMap { readTests(File("compiler-tests/$it")) }).registerSimple()
+val expressionTests = (listOf("expressions").flatMap { readTests(File("compiler-tests/$it")) })
 
-val deepExpressionTests = (listOf("deep-expressions").flatMap { readTests(File("compiler-tests/$it")) }).registerSimple()
+val deepExpressionTests = (listOf("deep-expressions").flatMap { readTests(File("compiler-tests/$it")) })
