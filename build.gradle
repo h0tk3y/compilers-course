@@ -1,16 +1,12 @@
-group 'com.github.h0tk3y.compilersCourse'
-version '1.0-SNAPSHOT'
-
-buildscript {
-    repositories {
-        jcenter()
-    }
-    dependencies {
-        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:1.2.40"
-    }
+plugins {
+    id 'com.gradle.build-scan' version '1.13.2'
+    id 'org.jetbrains.kotlin.jvm' version '1.2.41'
 }
 
 apply plugin: 'kotlin'
+
+group 'com.github.h0tk3y.compilersCourse'
+version '1.0-SNAPSHOT'
 
 repositories {
     jcenter()
@@ -30,4 +26,9 @@ tasks.withType(org.jetbrains.kotlin.gradle.tasks.AbstractKotlinCompile) {
 
 test {
     jvmArgs '-Xss4m'
+}
+
+buildScan {
+    termsOfServiceUrl = 'https://gradle.com/terms-of-service'
+    termsOfServiceAgree = 'yes'
 }
