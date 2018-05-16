@@ -4,6 +4,15 @@ plugins {
 }
 
 apply plugin: 'kotlin'
+apply plugin: 'application'
+
+mainClassName = 'com.github.h0tk3y.compilersCourse.Cli'
+
+startScripts {
+    applicationName = 'rc'
+}
+
+applicationDistribution.from('.') { include 'runtime/*' }.into('bin')
 
 group 'com.github.h0tk3y.compilersCourse'
 version '1.0-SNAPSHOT'
